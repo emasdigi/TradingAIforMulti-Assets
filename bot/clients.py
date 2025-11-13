@@ -9,7 +9,7 @@ from binance.client import Client
 from openai import OpenAI
 from requests.exceptions import RequestException, Timeout
 
-from bot import config
+from config import config
 
 # --- Client Singletons ---
 _binance_client: Optional[Client] = None
@@ -29,7 +29,7 @@ def get_llm_client() -> Optional[OpenAI]:
     """Return an initialized OpenAI-compatible client singleton."""
     global _llm_client
 
-    _llm_client = OpenAI(api_key=config.LLM_API_KEY, base_url=config.LLM_BASE_URL)
+    _llm_client = OpenAI(api_key=config.OPENROUTER_API_KEY, base_url=config.OPENROUTER_BASE_URL)
     return _llm_client
 
 

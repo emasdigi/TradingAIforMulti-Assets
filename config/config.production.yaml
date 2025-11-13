@@ -1,0 +1,23 @@
+mongo:
+  secretName: PLUANG_IDSS_MONGO_CONFIG
+  appName: pricing-mongo-prod-jkt
+kafka:
+  consumer:
+    topic:
+      idssOhlc: idss-candle-v2
+    groupId: trading-ai-bot-consumer-production
+  # producer:
+  #   topic:
+  #     flowTardingHedgingOrders: flow-trading-order-request
+  secretName: KAFKA_CONFIG_NODE
+tradingBotSecretName: PLUANG_TRADING_AI_BOT
+projectS3Path: s3://trading-ai-multi-assets/
+awsRegionName: ap-southeast-3
+filePathAwsKey: AWS_key.json
+slackAlert:
+  channel: quant-alert-production
+  infoChannel: quant-alert-dev
+  attentionEmailList:
+    - sungjin.oh@pluang.com
+    - hung.to@pluang.com
+    - rui.zhao@pluang.com

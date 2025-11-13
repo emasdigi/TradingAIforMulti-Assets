@@ -1,0 +1,18 @@
+[server]
+# Network Configuration for external access
+address = "0.0.0.0"
+port = 8501
+enableCORS = true
+enableXsrfProtection = true
+maxUploadSize = 200
+enableWebsocketCompression = true
+
+[theme]
+primaryColor = "#3498DB"
+backgroundColor = "#FAFAFA"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#2C3E50"
+font = "sans serif"
+
+[browser]
+gatherUsageStats = false
