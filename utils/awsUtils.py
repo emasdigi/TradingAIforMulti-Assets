@@ -242,6 +242,158 @@ class AWS:
             print(f"Error downloading from S3: {e}")
             return False
 
+    def upload_directory_to_s3(self, local_directory: str, s3_base_path: str, pattern: str = "*") -> dict:
+        """
+        Upload all files in a directory to S3.
+        
+        Args:
+            local_directory (str): Local directory path containing files to upload
+            s3_base_path (str): S3 base path in format 's3://bucket-name/key/path/' or 'bucket-name/key/path/'
+            pattern (str): Glob pattern to filter files (default: "*" for all files)
+            
+        Returns:
+            dict: Summary with 'success' count, 'failed' count, and 'uploaded_files' list
+        """
+        import glob
+        from pathlib import Path
+        
+        # Ensure s3_base_path ends with '/'
+        if not s3_base_path.endswith('/'):
+            s3_base_path += '/'
+        
+        # Get all matching files
+        local_dir_path = Path(local_directory)
+        if not local_dir_path.exists():
+            print(f"Directory not found: {local_directory}")
+            return {"success": 0, "failed": 0, "uploaded_files": []}
+        
+        # Use glob to find matching files
+        files = list(local_dir_path.glob(pattern))
+        
+        success_count = 0
+        failed_count = 0
+        uploaded_files = []
+        
+        for file_path in files:
+            if file_path.is_file():  # Only process files, not directories
+                # Get the relative filename
+                filename = file_path.name
+                
+                # Construct S3 path
+                s3_file_path = s3_base_path + filename
+                
+                # Upload file
+                success = self.upload_to_s3(str(file_path), s3_file_path)
+                
+                if success:
+                    success_count += 1
+                    uploaded_files.append(filename)
+                    print(f"✓ Uploaded: {filename} → {s3_file_path}")
+                else:
+                    failed_count += 1
+                    print(f"✗ Failed to upload: {filename}")
+        
+        result = {
+            "success": success_count,
+            "failed": failed_count,
+            "uploaded_files": uploaded_files
+        }
+        
+        print(f"\nUpload Summary: {success_count} succeeded, {failed_count} failed")
+        return result
+
+    def download_directory_from_s3(self, s3_base_path: str, local_directory: str, pattern: str = "*") -> dict:
+        """
+        Download all files from an S3 path to a local directory.
+        
+        Args:
+            s3_base_path (str): S3 base path in format 's3://bucket-name/key/path/' or 'bucket-name/key/path/'
+            local_directory (str): Local directory path to save downloaded files
+            pattern (str): Pattern to filter files (e.g., "*.csv", "*.json", default: "*" for all files)
+            
+        Returns:
+            dict: Summary with 'success' count, 'failed' count, and 'downloaded_files' list
+        """
+        from pathlib import Path
+        
+        try:
+            # Parse S3 path
+            if s3_base_path.startswith('s3://'):
+                s3_base_path_cleaned = s3_base_path[5:]
+            else:
+                s3_base_path_cleaned = s3_base_path
+            
+            # Split bucket and prefix
+            parts = s3_base_path_cleaned.split('/', 1)
+            bucket_name = parts[0]
+            prefix = parts[1] if len(parts) > 1 else ''
+            
+            # Ensure prefix ends with '/' if it exists
+            if prefix and not prefix.endswith('/'):
+                prefix += '/'
+            
+            # Create local directory if it doesn't exist
+            local_dir_path = Path(local_directory)
+            local_dir_path.mkdir(parents=True, exist_ok=True)
+            
+            # List objects in S3
+            response = self.awsClient.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
+            
+            if 'Contents' not in response:
+                print(f"No files found in S3 path: {s3_base_path}")
+                return {"success": 0, "failed": 0, "downloaded_files": []}
+            
+            success_count = 0
+            failed_count = 0
+            downloaded_files = []
+            
+            # Process pattern matching
+            import fnmatch
+            
+            for obj in response['Contents']:
+                s3_key = obj['Key']
+                
+                # Skip if it's a directory marker
+                if s3_key.endswith('/'):
+                    continue
+                
+                # Get filename from key
+                filename = s3_key.split('/')[-1]
+                
+                # Check if filename matches pattern
+                if not fnmatch.fnmatch(filename, pattern):
+                    continue
+                
+                # Construct local file path
+                local_file_path = local_dir_path / filename
+                
+                # Construct full S3 path for download
+                s3_file_path = f"s3://{bucket_name}/{s3_key}"
+                
+                # Download file
+                success = self.download_from_s3(s3_file_path, str(local_file_path))
+                
+                if success:
+                    success_count += 1
+                    downloaded_files.append(filename)
+                    print(f"✓ Downloaded: {s3_file_path} → {filename}")
+                else:
+                    failed_count += 1
+                    print(f"✗ Failed to download: {filename}")
+            
+            result = {
+                "success": success_count,
+                "failed": failed_count,
+                "downloaded_files": downloaded_files
+            }
+            
+            print(f"\nDownload Summary: {success_count} succeeded, {failed_count} failed")
+            return result
+            
+        except Exception as e:
+            print(f"Error listing S3 objects: {e}")
+            return {"success": 0, "failed": 0, "downloaded_files": []}
+
     def centralizedAlert(
         self,
         slackChannelName,

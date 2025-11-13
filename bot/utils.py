@@ -41,7 +41,7 @@ def setup_logging():
     
     # Optionally add file handler for persistent logs
     try:
-        log_file = config.DATA_DIR / "trading_bot.log"
+        log_file = "trading_bot.log"
         file_handler = logging.FileHandler(log_file, mode='a')
         file_handler.setLevel(logging.INFO)
         file_handler.setFormatter(formatter)

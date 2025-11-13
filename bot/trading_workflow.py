@@ -43,14 +43,10 @@ class TradingState:
     def load_state(self):
         """Load persisted balance and positions if available."""
         # Try to download from S3 first
-        s3_file_path = config.PROJECT_S3_PATH + "portfolio_state.json"
-        download_success = config.aws.download_from_s3(
-            s3_path=s3_file_path,
-            local_file_path=str(utils.STATE_JSON)
-        )
+        download_success = config.aws.download_directory_from_s3(s3_base_path=config.PROJECT_S3_PATH, local_directory=config.DATA_DIR)
         
-        if download_success:
-            logging.info("Successfully downloaded state from S3: %s", s3_file_path)
+        if download_success["success"] > 0:
+            logging.info("Successfully downloaded state from S3: %s", config.PROJECT_S3_PATH)
         else:
             logging.info("Could not download from S3, will check for local state file")
         
@@ -104,13 +100,9 @@ class TradingState:
                 )
             
             # Upload to S3
-            s3_file_path = config.PROJECT_S3_PATH + "portfolio_state.json"
-            upload_success = config.aws.upload_to_s3(
-                local_file_path=str(utils.STATE_JSON),
-                s3_path=s3_file_path
-            )
-            if upload_success:
-                logging.info("State saved locally and uploaded to S3: %s", s3_file_path)
+            upload_success = config.aws.upload_directory_to_s3(local_directory=config.DATA_DIR, s3_base_path=config.PROJECT_S3_PATH)
+            if upload_success["success"] > 0:
+                logging.info("State saved locally and uploaded to S3: %s", config.PROJECT_S3_PATH)
             else:
                 logging.warning("State saved locally but S3 upload failed")
                 
