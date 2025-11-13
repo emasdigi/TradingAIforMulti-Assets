@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import pytz 
 
 from . import clients
-from . import config
+from config import config
 from .indicators import *
 
 from alpaca.data.historical import StockHistoricalDataClient

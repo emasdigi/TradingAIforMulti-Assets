@@ -9,7 +9,7 @@ from binance.client import Client
 from openai import OpenAI
 from requests.exceptions import RequestException, Timeout
 
-from bot import config
+from config import config
 
 # --- Client Singletons ---
 _binance_client: Optional[Client] = None

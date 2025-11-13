@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from . import config
+from config import config
 
 
 # This is the system prompt

@@ -1,0 +1,5 @@
+VM_env: VM
+filePathEnv: env.json
+# TODO: param setup, as the service is critical to wait long time till container restart
+MAXRETRYTIME: 40
+retryDelay: 120

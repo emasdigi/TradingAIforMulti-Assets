@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from . import config
+from config import config
 
 
 # --- LOGGING ---

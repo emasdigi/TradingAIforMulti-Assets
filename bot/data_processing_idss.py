@@ -6,18 +6,19 @@ import pandas as pd
 from pymongo import MongoClient, DESCENDING
 from pymongo.server_api import ServerApi
 
-from . import config
+from config import config
 from .indicators import *
 
 
 class IDSStockMongoClient:
     """MongoDB client for fetching Indonesian stock (IDSS) OHLC data."""
     
+    MONGO_DB_NAME="pluang_indo_stock_static_data_v2"
     COLLECTION_HOURLY_OHLC_NAME = "indo_stock_one_hour_ohlc_price_stats"
     COLLECTION_MINS_OHLC_NAME = "indo_stock_five_minutes_ohlc_price_stats"
 
     def __init__(self):
-        uri = f"mongodb+srv://{config.MONGO_DB_USERNAME}:{config.MONGO_DB_PASSWORD}@{config.MONGO_DB_PATH}"
+        uri = f"mongodb+srv://{config.MONGO_DB_USERNAME}:{config.MONGO_DB_PASSWORD}@{config.MONGO_DB_HOST}/?appName={config.MONGO_APP_NAME}"
         # Create a new client and connect to the server
         client = MongoClient(uri, server_api=ServerApi('1'))
         try:
@@ -26,7 +27,7 @@ class IDSStockMongoClient:
         except Exception as e:
             logging.error(f"Failed to connect to MongoDB: {e}")
 
-        self.db = client[config.MONGO_DB_NAME]
+        self.db = client[self.MONGO_DB_NAME]
 
     def fetch_hourly_ohlc(self, symbol: str, limit: int = 200) -> List[Dict[str, Any]]:
         """Fetch hourly OHLC data for a symbol."""

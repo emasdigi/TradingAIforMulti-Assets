@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from . import config
+from config import config
 
 TRADING_RULES_PROMPT = """
 You are a top level crypto trader focused on multiplying the account while safeguarding capital. Always apply these core rules:

@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from typing import Iterable, Any, List
-from . import config
+from config import config
 
 
 def round_series(values: Iterable[Any], precision: int) -> List[float]:

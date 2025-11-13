@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 from . import clients
-from . import config
+from config import config
 from .indicators import *
 
 def collect_market_data(symbol: str) -> Optional[Dict[str, Any]]:

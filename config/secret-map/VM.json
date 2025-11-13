@@ -1,0 +1,36 @@
+{
+    "DEVELOPMENT_TREASURY_DASHBOARD_OPSGENIE": [
+        "riskMonitorSquad",
+        "DataScienceSquad",
+        "TreasurySquad"
+    ],
+    "STAGING_TREASURY_DASHBOARD_OPSGENIE": [
+        "riskMonitorSquad",
+        "DataScienceSquad",
+        "TreasurySquad"
+    ],
+    "DEVELOPMENT_GCP_SERVICE_ACCOUNT_CREDENTIAL": [
+        "type",
+        "project_id",
+        "private_key_id",
+        "private_key",
+        "client_email",
+        "client_id",
+        "auth_uri",
+        "token_uri",
+        "auth_provider_x509_cert_url",
+        "client_x509_cert_url"
+    ],
+    "STAGING_GCP_SERVICE_ACCOUNT_CREDENTIAL": [
+        "type",
+        "project_id",
+        "private_key_id",
+        "private_key",
+        "client_email",
+        "client_id",
+        "auth_uri",
+        "token_uri",
+        "auth_provider_x509_cert_url",
+        "client_x509_cert_url"
+    ]
+}
