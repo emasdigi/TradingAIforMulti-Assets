@@ -67,7 +67,7 @@ envCONFIG = yaml_parser(envConfigFilePath)
 
 # AWS Utils
 from utils.awsUtils import AWS
-aws = AWS(env=env, configFilePath=f"config/config.{env}.yaml", secret_name=envCONFIG['awsSecretName'])
+aws = AWS(env=env, configFilePath=f"config/config.{env}.yaml", secret_name=envCONFIG.get('awsSecretName', ''))
 
 # MONGO DB
 MONGO_DB_CONFIG = aws.get_aws_secret_manager_value(

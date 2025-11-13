@@ -32,15 +32,17 @@ class AWS:
 
         self.env = env
         self.CONFIG = yaml_parser(configFilePath)
-        self.secretMap = json_parser(f"/workspace/config/secret-map/{env}.json")
+        self.secretMap = json_parser(f"./config/secret-map/{env}.json")
         self.cloud = "AWS"
         self.credentialViaAwsKey = env in ["VM", "development"]
 
-
+        self.aws_client_init()
         if not self.credentialViaAwsKey:
             self.load_env_as_dict()
         
-        AWS_SECRET_CONFIG = self.get_aws_secret_manager_value(key=secret_name)
+        AWS_SECRET_CONFIG = {}
+        if secret_name:
+            AWS_SECRET_CONFIG = self.get_aws_secret_manager_value(key=secret_name)
         AWS_ACCESS_KEY = AWS_SECRET_CONFIG.get("AWS_ACCESS_KEY", "")
         AWS_SECRET_KEY = AWS_SECRET_CONFIG.get("AWS_SECRET_KEY", "")
         
