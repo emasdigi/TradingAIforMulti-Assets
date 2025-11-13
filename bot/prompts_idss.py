@@ -52,19 +52,15 @@ You have exactly FOUR possible actions per decision cycle:
 1. **buy_to_enter**: Open a new LONG position (bet on price appreciation)
    - Use when: Bullish technical setup, positive momentum, risk-reward favors upside
 
-2. **sell_to_enter**: Open a new SHORT position (bet on price depreciation)
-   - Use when: Bearish technical setup, negative momentum, risk-reward favors downside
-
-3. **hold**: Maintain current positions without modification
+2. **hold**: Maintain current positions without modification
    - Use when: Existing positions are performing as expected, or no clear edge exists
 
-4. **close**: Exit an existing position entirely
+3. **close**: Exit an existing position entirely
    - Use when: Profit target reached, stop loss triggered, or thesis invalidated
 
 ## Position Management Constraints
 
-- **NO pyramiding**: Cannot add to existing positions (one position per coin maximum)
-- **NO hedging**: Cannot hold both long and short positions in the same asset
+- **NO pyramiding**: Cannot add to existing positions
 - **NO partial exits**: Must close entire position at once
 
 ---
@@ -128,7 +124,7 @@ Return ONLY a valid JSON object with this structure:
 {
   "BBCA": {
     "signal": "hold|entry|close",
-    "side": "long|short",  // REQUIRED for "entry", set to empty string "" for "hold" and "close"
+    "side": "long",  // REQUIRED for "entry", set to empty string "" for "hold" and "close"
     "quantity": 0.0,  // Position size in shares (e.g., 100 shares of BBCA). 
     "profit_target": 0.0,  // Target price level to take profits.
     "stop_loss": 0.0,  // Price level to cut losses.
@@ -161,8 +157,8 @@ For each stock, provide a trading decision in JSON format. You can either:
 ## Output Validation Rules
 
 - All numeric fields must be positive numbers (except when signal is "hold")
-- profit_target must be above entry price for longs, below for shorts
-- stop_loss must be below entry price for longs, above for shorts
+- profit_target must be above entry price for longs
+- stop_loss must be below entry price for longs
 - justification must be concise (max 500 characters)
 - When signal is "hold": Set quantity=0 and use placeholder values for risk fields
 
