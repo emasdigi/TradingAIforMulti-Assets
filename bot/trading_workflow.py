@@ -227,10 +227,11 @@ if config.ASSET_MODE.lower() == "crypto":
     from . import prompts_v1 as prompts
 elif config.ASSET_MODE.lower() == "us_stock":
     from . import data_processing_stock as data_processing
-    from . import prompts_idss as prompts
+    from . import prompts_stock as prompts
 elif config.ASSET_MODE.lower() == "idss":
     from . import data_processing_idss as data_processing
-    from . import prompts_stock as prompts
+    from . import prompts_idss as prompts
+
 
 class TradingState:
     """Manages the full state of the trading bot."""
@@ -258,13 +259,17 @@ class TradingState:
         data: Dict[str, Any] = {}
 
         # Try to download from S3 first
-        download_success = config.aws.download_directory_from_s3(s3_base_path=config.PROJECT_S3_PATH, local_directory=config.DATA_DIR)
-        
+        download_success = config.aws.download_directory_from_s3(
+            s3_base_path=config.PROJECT_S3_PATH, local_directory=config.DATA_DIR
+        )
+
         if download_success["success"] > 0:
-            logging.info("Successfully downloaded state from S3: %s", config.PROJECT_S3_PATH)
+            logging.info(
+                "Successfully downloaded state from S3: %s", config.PROJECT_S3_PATH
+            )
         else:
             logging.info("Could not download from S3, will check for local state file")
-            
+
         if self._state_file.exists():
             try:
                 with open(self._state_file, "r") as f:
@@ -479,9 +484,15 @@ class TradingState:
                 json.dump(payload, f, indent=2)
 
             # Upload to S3
-            upload_success = config.aws.upload_directory_to_s3(local_directory=config.DATA_DIR, s3_base_path=config.PROJECT_S3_PATH)
+            upload_success = config.aws.upload_directory_to_s3(
+                local_directory=str(config.DATA_DIR) + "/" + self.model_name,
+                s3_base_path=str(config.PROJECT_S3_PATH) + self.model_name,
+            )
             if upload_success["success"] > 0:
-                logging.info("State saved locally and uploaded to S3: %s", config.PROJECT_S3_PATH)
+                logging.info(
+                    "State saved locally and uploaded to S3: %s",
+                    str(config.PROJECT_S3_PATH) + self.model_name,
+                )
             else:
                 logging.warning("State saved locally but S3 upload failed")
         except Exception as e:
@@ -653,8 +664,8 @@ def get_llm_decisions(
             },
             model_name=model_name,
         )
-        
-        if not content:
+
+        if not normalized_content:
             logging.error("LLM API returned empty content.")
             return None
 
@@ -1150,24 +1161,24 @@ def is_idss_break_time() -> bool:
     """
     wib_tz = ZoneInfo("Asia/Jakarta")
     now = datetime.now(wib_tz)
-    
+
     # Check if weekend (no break on weekends, market is just closed)
     if now.weekday() >= 5:
         return False
-    
+
     # Break time: 12:00 - 13:30 WIB
     break_start = now.replace(hour=12, minute=0, second=0, microsecond=0)
     break_end = now.replace(hour=13, minute=30, second=0, microsecond=0)
-    
+
     return break_start <= now < break_end
 
 
 def is_market_open() -> bool:
     """
     Check if the market is currently open based on ASSET_MODE.
-    
+
     US Stock Market: 9:30 AM - 4:00 PM ET, Monday-Friday
-    Indonesian Stock Market (IDSS): 
+    Indonesian Stock Market (IDSS):
         - Session 1: 09:00 - 12:00 WIB
         - Break: 12:00 - 13:30 WIB
         - Session 2: 13:30 - 15:00 WIB (includes pre-closing auction)
@@ -1177,40 +1188,40 @@ def is_market_open() -> bool:
         # US stock market hours
         et_tz = ZoneInfo("America/New_York")
         now = datetime.now(et_tz)
-        
+
         # Check if weekend
         if now.weekday() >= 5:  # Saturday = 5, Sunday = 6
             return False
-        
+
         # Check if within market hours (9:30 AM - 4:00 PM ET)
         market_open = now.replace(hour=9, minute=30, second=0, microsecond=0)
         market_close = now.replace(hour=16, minute=0, second=0, microsecond=0)
-        
+
         return market_open <= now <= market_close
-    
+
     elif config.ASSET_MODE.lower() == "idss":
         # Indonesian stock market hours (IDX - Indonesia Stock Exchange)
         wib_tz = ZoneInfo("Asia/Jakarta")  # WIB = GMT+7
         now = datetime.now(wib_tz)
-        
+
         # Check if weekend
         if now.weekday() >= 5:  # Saturday = 5, Sunday = 6
             return False
-        
+
         # Session 1: 09:00 - 12:00 WIB
         session1_open = now.replace(hour=9, minute=0, second=0, microsecond=0)
         session1_close = now.replace(hour=12, minute=0, second=0, microsecond=0)
-        
+
         # Session 2: 13:30 - 15:00 WIB (includes pre-closing auction)
         session2_open = now.replace(hour=13, minute=30, second=0, microsecond=0)
         session2_close = now.replace(hour=15, minute=0, second=0, microsecond=0)
-        
+
         # Check if within either trading session
         in_session1 = session1_open <= now < session1_close
         in_session2 = session2_open <= now <= session2_close
-        
+
         return in_session1 or in_session2
-    
+
     else:
         # For crypto or other asset modes, market is always open
         return True
@@ -1256,34 +1267,43 @@ def run_trading_loop(model_name: str):
             if config.ASSET_MODE.lower() == "us_stock":
                 if not is_market_open():
                     et_tz = ZoneInfo("America/New_York")
-                    current_time = datetime.now(et_tz).strftime('%Y-%m-%d %H:%M:%S %Z')
-                    logging.info(f"Market is now closed (current time: {current_time}). Waiting for market to open...")
+                    current_time = datetime.now(et_tz).strftime("%Y-%m-%d %H:%M:%S %Z")
+                    logging.info(
+                        f"Market is now closed (current time: {current_time}). Waiting for market to open..."
+                    )
                     state.save_state()
                     state.invocation_count = 0  # Reset iteration count
-                    logging.info("Sleeping for 1 minute before checking market status again...")
+                    logging.info(
+                        "Sleeping for 1 minute before checking market status again..."
+                    )
                     time.sleep(60)  # Sleep for 1 minute
                     continue  # Skip this iteration and retry
-            
+
             if config.ASSET_MODE.lower() == "idss":
                 # Check if it's break time (12:00 - 13:30 WIB)
                 if is_idss_break_time():
                     wib_tz = ZoneInfo("Asia/Jakarta")
-                    current_time = datetime.now(wib_tz).strftime('%H:%M:%S %Z')
-                    logging.info(f"IDX market is on break (current time: {current_time}). Sleeping for 1 minute...")
-                    time.sleep(60)  # Sleep for 1 minute
-                    continue  # Skip this iteration and retry
-                
-                # Check if market is closed for the day
-                if not is_market_open():
-                    wib_tz = ZoneInfo("Asia/Jakarta")
-                    current_time = datetime.now(wib_tz).strftime('%Y-%m-%d %H:%M:%S %Z')
-                    logging.info(f"IDX market is now closed (current time: {current_time}). Waiting for market to open...")
-                    state.save_state()
-                    state.invocation_count = 0  # Reset iteration count
-                    logging.info("Sleeping for 1 minute before checking market status again...")
+                    current_time = datetime.now(wib_tz).strftime("%H:%M:%S %Z")
+                    logging.info(
+                        f"IDX market is on break (current time: {current_time}). Sleeping for 1 minute..."
+                    )
                     time.sleep(60)  # Sleep for 1 minute
                     continue  # Skip this iteration and retry
 
+                # Check if market is closed for the day
+                if not is_market_open():
+                    wib_tz = ZoneInfo("A sia/Jakarta")
+                    current_time = datetime.now(wib_tz).strftime("%Y-%m-%d %H:%M:%S %Z")
+                    logging.info(
+                        f"IDX market is now closed (current time: {current_time}). Waiting for market to open..."
+                    )
+                    state.save_state()
+                    state.invocation_count = 0  # Reset iteration count
+                    logging.info(
+                        "Sleeping for 1 minute before checking market status again..."
+                    )
+                    time.sleep(60)  # Sleep for 1 minute
+                    continue  # Skip this iteration and retry
 
             state.invocation_count += 1
             state.current_iteration_messages = []
