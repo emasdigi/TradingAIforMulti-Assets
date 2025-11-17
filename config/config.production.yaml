@@ -12,6 +12,7 @@ kafka:
   secretName: KAFKA_CONFIG_NODE
 tradingBotSecretName: PLUANG_TRADING_AI_BOT
 projectS3Path: s3://trading-ai-multi-assets/
+awsSecretName: AWS_KEY_QUANT_TEAM_S3_ACCESS
 awsRegionName: ap-southeast-3
 filePathAwsKey: AWS_key.json
 slackAlert:

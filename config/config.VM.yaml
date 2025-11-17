@@ -13,6 +13,7 @@ kafka:
 tradingBotSecretName: STAGING_TRADING_AI_BOT
 awsRegionName: ap-southeast-3
 projectS3Path: s3://trading-ai-multi-assets-staging/
+awsSecretName: STAGING_QUANT_AWS_CLIENT
 filePathAwsKey: AWS_key.json
 slackAlert:
   channel: quant-alert-dev

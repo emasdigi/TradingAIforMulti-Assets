@@ -12,6 +12,7 @@ kafka:
   secretName: STAGING_KAFKA_CONFIG_NODE
 tradingBotSecretName: STAGING_TRADING_AI_BOT
 projectS3Path: s3://trading-ai-multi-assets-staging/
+awsSecretName: STAGING_QUANT_AWS_CLIENT
 awsRegionName: ap-southeast-3
 filePathAwsKey: AWS_key.json
 slackAlert:
