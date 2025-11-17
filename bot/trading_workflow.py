@@ -23,10 +23,10 @@ if config.ASSET_MODE.lower() == "crypto":
     from . import prompts_v1 as prompts
 elif config.ASSET_MODE.lower() == "us_stock":
     from . import data_processing_stock as data_processing
-    from . import prompts_idss as prompts
+    from . import prompts_stock as prompts
 elif config.ASSET_MODE.lower() == "idss":
     from . import data_processing_idss as data_processing
-    from . import prompts_stock as prompts
+    from . import prompts_idss as prompts
 
 class TradingState:
     """Manages the full state of the trading bot."""

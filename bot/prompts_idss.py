@@ -445,7 +445,7 @@ def create_trading_prompt(
                     "invalidation_condition": pos["invalidation_condition"],
                 },
                 "confidence": pos["confidence"],
-                "risk_usd": pos["risk_usd"],
+                "risk_idr": pos["risk_idr"],
                 "notional_usd": pos["quantity"] * current_price,
             }
             prompt_lines.append(f"{coin} position data: {json.dumps(position_payload)}")
