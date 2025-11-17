@@ -85,13 +85,13 @@ LLM_MODELS = {
         "max_tokens": 10000,
         "temperature": 0.7,
     },
-    # "doubao_seed": {
-    #     "model_id": "bytedance/seed-oss-36b-instruct",
-    #     "name": "Doubao Seed",
-    #     "provider": "Bytedance",
-    #     "max_tokens": 10000,
-    #     "temperature": 0.7,
-    # },
+    "sherlock_alpha": {
+        "model_id": "openrouter/sherlock-think-alpha",
+        "name": "Sherlock Think",
+        "provider": "OpenRouter",
+        "max_tokens": 10000,
+        "temperature": 0.7,
+    },
 }
 # --- TELEGRAM NOTIFICATIONS ---
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")

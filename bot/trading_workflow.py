@@ -1292,7 +1292,7 @@ def run_trading_loop(model_name: str):
 
                 # Check if market is closed for the day
                 if not is_market_open():
-                    wib_tz = ZoneInfo("A sia/Jakarta")
+                    wib_tz = ZoneInfo("Asia/Jakarta")
                     current_time = datetime.now(wib_tz).strftime("%Y-%m-%d %H:%M:%S %Z")
                     logging.info(
                         f"IDX market is now closed (current time: {current_time}). Waiting for market to open..."
