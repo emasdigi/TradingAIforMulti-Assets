@@ -13,29 +13,30 @@ from .indicators import *
 class IDSStockMongoClient:
     """MongoDB client for fetching Indonesian stock (IDSS) OHLC data."""
 
-    MONGO_DB_NAME="pluang_indo_stock_static_data_v2"
+    MONGO_DB_NAME = "pluang_indo_stock_static_data_v2"
     COLLECTION_HOURLY_OHLC_NAME = "indo_stock_one_hour_ohlc_price_stats"
     COLLECTION_MINS_OHLC_NAME = "indo_stock_five_minutes_ohlc_price_stats"
 
     def __init__(self):
         uri = f"mongodb+srv://{config.MONGO_DB_USERNAME}:{config.MONGO_DB_PASSWORD}@{config.MONGO_DB_HOST}/?appName={config.MONGO_APP_NAME}"
         # Create a new client and connect to the server
+        client = MongoClient(uri, server_api=ServerApi("1"))
         try:
-            client = MongoClient(uri, server_api=ServerApi('1'))
-            client.admin.command('ping')
+            client.admin.command("ping")
             logging.info("Successfully connected to MongoDB for IDSS data!")
-            self.db = client[self.MONGO_DB_NAME]
         except Exception as e:
             logging.error(f"Failed to connect to MongoDB: {e}")
-            self.db = None
+
+        self.db = client[self.MONGO_DB_NAME]
 
     def fetch_hourly_ohlc(self, symbol: str, limit: int = 200) -> List[Dict[str, Any]]:
         """Fetch hourly OHLC data for a symbol."""
-        if self.db is None:
-            logging.error("MongoDB not connected. Cannot fetch hourly OHLC data.")
-            return []
         collection_hourly_ohlc = self.db[self.COLLECTION_HOURLY_OHLC_NAME]
-        data = collection_hourly_ohlc.find({"sc": symbol}).sort("psd", DESCENDING).limit(limit)
+        data = (
+            collection_hourly_ohlc.find({"sc": symbol})
+            .sort("psd", DESCENDING)
+            .limit(limit)
+        )
         return list(data)
 
     def fetch_mins_ohlc(self, symbol: str, limit: int = 100) -> List[Dict[str, Any]]:
@@ -44,7 +45,11 @@ class IDSStockMongoClient:
             logging.error("MongoDB not connected. Cannot fetch 5-minute OHLC data.")
             return []
         collection_mins_ohlc = self.db[self.COLLECTION_MINS_OHLC_NAME]
-        data = collection_mins_ohlc.find({"sc": symbol}).sort("psd", DESCENDING).limit(limit)
+        data = (
+            collection_mins_ohlc.find({"sc": symbol})
+            .sort("psd", DESCENDING)
+            .limit(limit)
+        )
         return list(data)
 
 
@@ -55,7 +60,7 @@ mongo_client = IDSStockMongoClient()
 def mongo_data_to_dataframe(mongo_data: List[Dict[str, Any]]) -> pd.DataFrame:
     """
     Convert MongoDB OHLC data to a pandas DataFrame.
-    
+
     Expected MongoDB fields:
     - sc: symbol code
     - psd: period start date (timestamp)
@@ -81,7 +86,7 @@ def mongo_data_to_dataframe(mongo_data: List[Dict[str, Any]]) -> pd.DataFrame:
         "lop": "low",
         "clp": "close",
         "vol": "volume",
-        "cst": "timestamp"
+        "cst": "timestamp",
     }
 
     df = df.rename(columns=column_mapping)
@@ -90,7 +95,7 @@ def mongo_data_to_dataframe(mongo_data: List[Dict[str, Any]]) -> pd.DataFrame:
     numeric_cols = ["open", "high", "low", "close", "volume"]
     for col in numeric_cols:
         if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
+            df[col] = pd.to_numeric(df[col], errors="coerce")
 
     # Calculate mid_price
     df["mid_price"] = (df["high"] + df["low"]) / 2
@@ -108,10 +113,10 @@ def collect_market_data(symbol: str) -> Optional[Dict[str, Any]]:
     """
     Collect and process market data for Indonesian stocks (IDSS).
     Returns a market snapshot compatible with the trading workflow.
-    
+
     Args:
         symbol: The stock symbol (e.g., "BBCA", "GOTO")
-        
+
     Returns:
         Dictionary with market data and indicators, or None if data fetch fails
     """
@@ -188,7 +193,9 @@ def collect_market_data(symbol: str) -> Optional[Dict[str, Any]]:
             },
         }
     except Exception as exc:
-        logging.error(f"Failed to build market snapshot for {symbol}: {exc}", exc_info=True)
+        logging.error(
+            f"Failed to build market snapshot for {symbol}: {exc}", exc_info=True
+        )
         return None
 
 

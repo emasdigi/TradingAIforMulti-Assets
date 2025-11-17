@@ -505,7 +505,6 @@ def is_today(timestamp: int) -> bool:
     dt = datetime.fromtimestamp(timestamp, tz)
     return dt.date() == datetime.now().date()
 
-
 def is_next_day(prev_timestamp: int, new_timestamp: int) -> bool:
     tz = pytz.FixedOffset(420)  # GMT-4 is UTC-4 hours, i.e., -240 minutes
 

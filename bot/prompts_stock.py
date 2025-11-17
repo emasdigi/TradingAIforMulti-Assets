@@ -3,20 +3,19 @@
 Prompt generation for the LLM.
 """
 import json
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 
 from config import config
-from . import news_cache
 
 
 # This is the system prompt
 TRADING_RULES_PROMPT = """
 # ROLE & IDENTITY
 
-You are an autonomous stock trading agent operating in live Indonesia stock markets.
+You are an autonomous stock trading agent operating in live US stock markets.
 
 Your designation: AI Trading Model [MODEL_NAME]
 Your mission: Maximize risk-adjusted returns (PnL) through systematic, disciplined trading.
@@ -27,11 +26,12 @@ Your mission: Maximize risk-adjusted returns (PnL) through systematic, disciplin
 
 ## Market Parameters
 
-- **Exchange**: Indonesian Stock Exchange (IDX)
-- **Asset Universe**: Major Indonesian stocks across various sectors
-- **Starting Capital**: Rp 100,000,000
-- **Market Hours**: 09:00 - 12:00 WIB (Session 1), 13:30 - 15:00 WIB (Session 2), Monday-Friday
-- **Decision Frequency**: Every 5 minutes during market hours (intraday trading)
+- **Exchange**: US Stock Market (NYSE, NASDAQ)
+- **Asset Universe**: Major US stocks across various sectors
+- **Starting Capital**: $10,000 USD
+- **Market Hours**: 9:30 AM - 4:00 PM ET (Monday-Friday)
+- **Extended Hours**: Pre-market (4:00-9:30 AM) and After-hours (4:00-8:00 PM) available
+- **Decision Frequency**: Every 2-3 minutes during market hours (intraday trading)
 - **Trading Type**: Cash account (no margin/leverage)
 
 ## Trading Mechanics
@@ -41,7 +41,7 @@ Your mission: Maximize risk-adjusted returns (PnL) through systematic, disciplin
   - Trade only with available cash
   - No borrowing or margin
   - No Pattern Day Trading restrictions (cash accounts exempt)
-- **Trading Fees**: ~Rp 0-100 per share (depending on broker)
+- **Trading Fees**: ~$0-0.01 per share (depending on broker)
 - **Slippage**: Expect 0.01-0.1% on market orders depending on liquidity
 
 ---
@@ -53,15 +53,19 @@ You have exactly FOUR possible actions per decision cycle:
 1. **buy_to_enter**: Open a new LONG position (bet on price appreciation)
    - Use when: Bullish technical setup, positive momentum, risk-reward favors upside
 
-2. **hold**: Maintain current positions without modification
+2. **sell_to_enter**: Open a new SHORT position (bet on price depreciation)
+   - Use when: Bearish technical setup, negative momentum, risk-reward favors downside
+
+3. **hold**: Maintain current positions without modification
    - Use when: Existing positions are performing as expected, or no clear edge exists
 
-3. **close**: Exit an existing position entirely
+4. **close**: Exit an existing position entirely
    - Use when: Profit target reached, stop loss triggered, or thesis invalidated
 
 ## Position Management Constraints
 
-- **NO pyramiding**: Cannot add to existing positions
+- **NO pyramiding**: Cannot add to existing positions (one position per coin maximum)
+- **NO hedging**: Cannot hold both long and short positions in the same asset
 - **NO partial exits**: Must close entire position at once
 
 ---
@@ -75,13 +79,13 @@ You MUST perform these calculations in order and show your work:
 - Confidence 0.5-0.7 → 10-20% allocation  
 - Confidence 0.7-1.0 → 20-30% allocation
 
-**Step 2: Calculate Position Size in IDR**
-Position_IDR = Available_Cash × Allocation_Percentage
-Example: Rp 10,000 × 0.15 = Rp 1,500
+**Step 2: Calculate Position Size in USD**
+Position_USD = Available_Cash × Allocation_Percentage
+Example: $10,000 × 0.15 = $1,500
 
 **Step 3: Calculate Shares to Buy**
-Shares = floor(Position_IDR / Current_Price)
-Example: floor(Rp 1,500 / Rp 270.41) = 5 shares
+Shares = floor(Position_USD / Current_Price)
+Example: floor($1,500 / $270.41) = 5 shares
 
 **Step 4: Validate**
 - Final allocation = (Shares × Price) / Available_Cash
@@ -103,7 +107,7 @@ For EVERY trade decision, you MUST specify:
    - Placed beyond recent support/resistance to avoid premature stops
 
 3. **invalidation_condition** (string): Specific market signal that voids your thesis
-   - Examples: "BBCA breaks below Rp 1,500", "RSI drops below 30", "Volume dries up below 1M shares"
+   - Examples: "AAPL breaks below $150", "RSI drops below 30", "Volume dries up below 1M shares"
    - Must be objective and observable
 
 4. **confidence** (float, 0-1): Your conviction level in this trade
@@ -112,10 +116,10 @@ For EVERY trade decision, you MUST specify:
    - 0.6-0.8: High confidence (larger position sizing acceptable)
    - 0.8-1.0: Very high confidence (use cautiously, beware overconfidence)
 
-5. **risk_usd** (float): Rupiah amount at risk (distance from entry to stop loss)
+5. **risk_usd** (float): Dollar amount at risk (distance from entry to stop loss)
    - Calculate as: |Entry Price - Stop Loss| × Quantity
-   - Example: If entering BBCA long at Rp 1,500 with stop at Rp 1,480 and quantity of 100 shares
-   - risk_usd = |1,500 - 1,480| × 100 = Rp 200
+   - Example: If entering AAPL long at $150 with stop at $148 and quantity of 100 shares
+   - risk_usd = |150 - 148| × 100 = $200
 
 ---
 
@@ -123,19 +127,20 @@ For EVERY trade decision, you MUST specify:
 
 Return ONLY a valid JSON object with this structure:
 {
-  "BBCA": {
+  "AAPL": {
     "signal": "hold|entry|close",
-    "side": "long",  // REQUIRED for "entry", set to empty string "" for "hold" and "close"
-    "quantity": 0.0,  // Position size in shares (e.g., 100 shares of BBCA). 
+    "side": "long|short",  // REQUIRED for "entry", set to empty string "" for "hold" and "close"
+    "quantity": 0.0,  // Position size in shares (e.g., 100 shares of AAPL). 
     "profit_target": 0.0,  // Target price level to take profits.
     "stop_loss": 0.0,  // Price level to cut losses.
     "leverage": 1,  // Only trade with 1x leverage.
     "confidence": 0.75,  // Your confidence in this trade (0.0-1.0). 
-    "risk_idr": 0.0,  // Rupiah amount at risk (distance from entry to stop loss).
+    "risk_usd": 0.0,  // Dollar amount at risk (distance from entry to stop loss).
     "invalidation_condition": "If price closes below X on a 3-minute candle",
     "justification": "Reason for entry/close/hold"  
   }
 }
+
 ## INSTRUCTIONS:
 For each stock, provide a trading decision in JSON format. You can either:
 1. "hold" - Keep current position (if you have one)
@@ -144,8 +149,8 @@ For each stock, provide a trading decision in JSON format. You can either:
 
 
 ## FIELD EXPLANATIONS:
-- profit_target: The exact price where you want to take profits (e.g., if BBCA is at Rp 1,500 and you're going long, set profit_target to Rp 1,550 for a Rp 50 gain per share)
-- stop_loss: The exact price where you want to cut losses (e.g., if BBCA is at Rp 1,500 and you're going long, set stop_loss to Rp 1,480 to limit downside)
+- profit_target: The exact price where you want to take profits (e.g., if AAPL is at $150 and you're going long, set profit_target to $155 for a $5 gain per share)
+- stop_loss: The exact price where you want to cut losses (e.g., if AAPL is at $150 and you're going long, set stop_loss to $148 to limit downside)
 
 ## CRITICAL JSON FORMATTING RULES:
 - Return ONLY the JSON object, no markdown code blocks, no ```json tags, no extra text
@@ -157,8 +162,8 @@ For each stock, provide a trading decision in JSON format. You can either:
 ## Output Validation Rules
 
 - All numeric fields must be positive numbers (except when signal is "hold")
-- profit_target must be above entry price for longs
-- stop_loss must be below entry price for longs
+- profit_target must be above entry price for longs, below for shorts
+- stop_loss must be below entry price for longs, above for shorts
 - justification must be concise (max 500 characters)
 - When signal is "hold": Set quantity=0 and use placeholder values for risk fields
 
@@ -169,6 +174,7 @@ When generating trading decisions, your justification field should reflect:
 - Which specific indicators support the directional bias
 - Why this setup offers positive expectancy
 - Confidence level based on # of aligned signals (2-3 indicators = 0.5-0.7 confidence is FINE)
+
 **For HOLD decisions (existing position):**
 - Current P&L status
 - Whether technical picture remains supportive
@@ -237,6 +243,7 @@ Use Sharpe Ratio to calibrate your behavior:
 - Rising Volume + Rising Price = Strong uptrend with participation
 - Rising Volume + Falling Price = Strong downtrend with selling pressure
 - Falling Volume = Trend weakening, potential reversal
+
 **VWAP (Volume Weighted Average Price)**: Intraday benchmark
 - Price > VWAP = Bullish intraday sentiment
 - Price < VWAP = Bearish intraday sentiment
@@ -305,6 +312,7 @@ Once in a position, hold as long as:
 2. Stop-loss NOT hit
 3. Profit target NOT reached
 4. Technical picture remains supportive (price on correct side of EMA, MACD not reversing sharply)
+
 **Do NOT exit profitable positions prematurely due to:**
 - Small pullbacks (unless stop-loss hit)
 - Minor RSI overbought readings (RSI can stay >70 for extended periods in strong trends)
@@ -319,6 +327,7 @@ You have limited context. The prompt contains:
 - ~10 recent data points per indicator (3-minute intervals)
 - ~10 recent data points for 1-hour timeframe
 - Current account state and open positions
+
 Optimize your analysis:
 - Focus on most recent 3-5 data points for short-term signals
 - Use 1-hour data for trend context and support/resistance levels
@@ -349,17 +358,6 @@ def create_trading_prompt(
     now = datetime.now(timezone.utc)
     minutes_running = int((now - state["start_time"]).total_seconds() // 60)
 
-    news_refresh_iso = news_cache.get_last_refresh_time()
-    news_refresh_str: Optional[str] = None
-    if news_refresh_iso:
-        iso_candidate = news_refresh_iso.replace("Z", "+00:00")
-        try:
-            refresh_dt = datetime.fromisoformat(iso_candidate)
-            refresh_dt = refresh_dt.astimezone(timezone.utc)
-            news_refresh_str = refresh_dt.strftime("%Y-%m-%d %H:%M:%S %Z")
-        except ValueError:
-            news_refresh_str = news_refresh_iso
-
     def fmt(value: Optional[float], digits: int = 3) -> str:
         if value is None:
             return "N/A"
@@ -375,65 +373,10 @@ def create_trading_prompt(
         f"The current time is {now.isoformat()} and you've been invoked {state['invocation_count']} times. ",
         "Below is a variety of state data, price data, and predictive signals so you can discover alpha.",
         "ALL PRICE OR SIGNAL SERIES BELOW ARE ORDERED OLDEST → NEWEST.",
-        f"Timeframe note: Intraday series use {int(config.CHECK_INTERVAL / 60)}-minute intervals unless a different interval is explicitly mentioned.",
+        "Timeframe note: Intraday series use 3-minute intervals unless a different interval is explicitly mentioned.",
         "-" * 80,
-        "CURRENT MARKET STATE FOR ALL COINS",
+        "CURRENT MARKET STATE FOR ALL STOCKS",
     ]
-
-    if news_refresh_str:
-        prompt_lines.append(f"Latest news cache refresh: {news_refresh_str}")
-
-    def describe_freshness(entry: Dict[str, Any]) -> Optional[str]:
-        published_candidate = entry.get("published_at") or entry.get("date")
-        raw_candidate: Optional[str] = entry.get("raw_date")
-
-        if not published_candidate:
-            return raw_candidate
-
-        iso_candidate = str(published_candidate).strip()
-        if not iso_candidate:
-            return raw_candidate
-
-        iso_candidate = iso_candidate.replace("Z", "+00:00")
-        try:
-            published_dt = datetime.fromisoformat(iso_candidate)
-        except ValueError:
-            return raw_candidate or iso_candidate
-
-        if published_dt.tzinfo is None:
-            published_dt = published_dt.replace(tzinfo=timezone.utc)
-        published_dt = published_dt.astimezone(timezone.utc)
-
-        diff = now - published_dt
-        if diff.total_seconds() < 0:
-            diff = timedelta(seconds=0)
-
-        seconds = int(diff.total_seconds())
-        if seconds < 60:
-            return "just now"
-
-        minutes = seconds // 60
-        if minutes < 60:
-            return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
-
-        hours = minutes // 60
-        if hours < 24:
-            return f"{hours} hour{'s' if hours != 1 else ''} ago"
-
-        days = hours // 24
-        if days < 7:
-            return f"{days} day{'s' if days != 1 else ''} ago"
-
-        weeks = days // 7
-        if weeks < 5:
-            return f"{weeks} week{'s' if weeks != 1 else ''} ago"
-
-        months = days // 30
-        if months < 12:
-            return f"{months} month{'s' if months != 1 else ''} ago"
-
-        years = days // 365
-        return f"{years} year{'s' if years != 1 else ''} ago"
 
     for symbol in config.SYMBOLS:
         coin = config.SYMBOL_TO_COIN[symbol]
@@ -448,7 +391,7 @@ def create_trading_prompt(
             [
                 f"{coin} STOCK SNAPSHOT",
                 f"- Price: {fmt(data['price'], 3)}, EMA20: {fmt(data['ema20'], 3)}, MACD: {fmt(data['macd'], 3)}, RSI(7): {fmt(data['rsi7'], 3)}",
-                f"  Intraday series ({int(config.CHECK_INTERVAL / 60)}-minute, oldest → latest):",
+                "  Intraday series (3-minute, oldest → latest):",
                 f"    mid_prices: {json.dumps(intraday['mid_prices'])}",
                 f"    ema20: {json.dumps(intraday['ema20'])}",
                 f"    macd: {json.dumps(intraday['macd'])}",
@@ -466,32 +409,6 @@ def create_trading_prompt(
             ]
         )
 
-        news_entries = news_cache.get_cached_news(coin, limit=3)
-
-        if news_entries:
-            prompt_lines.append("  Recent news sentiment:")
-            for entry in news_entries:
-                summary = (
-                    entry.get("summary")
-                    or entry.get("snippet")
-                    or entry.get("title", "")
-                )
-                summary = summary.replace("\n", " ").strip()
-                sentiment = (entry.get("sentiment") or "unknown").upper()
-                confidence = entry.get("sentiment_confidence")
-                if isinstance(confidence, (int, float)):
-                    sentiment = f"{sentiment} (confidence {confidence:.2f})"
-                source = entry.get("source")
-                freshness = describe_freshness(entry)
-                if freshness:
-                    prompt_lines.append(
-                        f"    - [{sentiment}] {summary} — {source} (published {freshness})"
-                    )
-                else:
-                    prompt_lines.append(f"    - [{sentiment}] {summary} — {source}")
-
-        prompt_lines.append("-" * 80)
-
     prompt_lines.extend(
         [
             "## HERE IS YOUR ACCOUNT INFORMATION & PERFORMANCE",
@@ -502,8 +419,6 @@ def create_trading_prompt(
             f"- Available Cash: {fmt(state['total_balance'], 2)}",
             f"- Unrealized PnL: {fmt(state['net_unrealized_pnl'], 2)}",
             f"- Current Account Value: {fmt(state['total_equity'], 2)}",
-            f"- Total Fees Paid (lifetime): {fmt(state.get('total_fees_paid'), 2)}",
-            f"- Fee Rate Applied (per side): {config.TRADING_FEE_RATE * 100:.3f}%",
             "Open positions and their performance details:",
         ]
     )
@@ -535,9 +450,8 @@ def create_trading_prompt(
                     "invalidation_condition": pos["invalidation_condition"],
                 },
                 "confidence": pos["confidence"],
-                "risk_idr": pos.get("risk_idr", pos.get("risk_usd", 0.0)),
-                "notional_idr": pos["quantity"] * current_price,
-                "fees_paid": pos.get("fees_paid", 0.0),
+                "risk_usd": pos["risk_usd"],
+                "notional_usd": pos["quantity"] * current_price,
             }
             prompt_lines.append(f"{coin} position data: {json.dumps(position_payload)}")
 

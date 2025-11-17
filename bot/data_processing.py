@@ -12,6 +12,7 @@ from config import config
 from . import clients
 from .indicators import add_indicator_columns, calculate_atr_series, round_series
 
+
 def collect_market_data(symbol: str) -> Optional[Dict[str, Any]]:
     """Return rich market snapshot for a given symbol."""
     binance_client = clients.get_binance_client()
@@ -19,12 +20,24 @@ def collect_market_data(symbol: str) -> Optional[Dict[str, Any]]:
         return None
 
     try:
-        intraday_klines = binance_client.get_klines(symbol=symbol, interval=config.INTERVAL, limit=200)
+        intraday_klines = binance_client.get_klines(
+            symbol=symbol, interval=config.INTERVAL, limit=200
+        )
         df_intraday = pd.DataFrame(
             intraday_klines,
             columns=[
-                "timestamp", "open", "high", "low", "close", "volume",
-                "close_time", "quote_volume", "trades", "taker_base", "taker_quote", "ignore"
+                "timestamp",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "close_time",
+                "quote_volume",
+                "trades",
+                "taker_base",
+                "taker_quote",
+                "ignore",
             ],
         )
 
@@ -41,8 +54,18 @@ def collect_market_data(symbol: str) -> Optional[Dict[str, Any]]:
         df_long = pd.DataFrame(
             binance_client.get_klines(symbol=symbol, interval="4h", limit=200),
             columns=[
-                "timestamp", "open", "high", "low", "close", "volume",
-                "close_time", "quote_volume", "trades", "taker_base", "taker_quote", "ignore"
+                "timestamp",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "close_time",
+                "quote_volume",
+                "trades",
+                "taker_base",
+                "taker_quote",
+                "ignore",
             ],
         )
         df_long[numeric_cols] = df_long[numeric_cols].astype(float)
@@ -56,8 +79,12 @@ def collect_market_data(symbol: str) -> Optional[Dict[str, Any]]:
         df_long["atr14"] = calculate_atr_series(df_long, 14)
 
         try:
-            oi_hist = binance_client.futures_open_interest_hist(symbol=symbol, period="5m", limit=30)
-            open_interest_values = [float(entry["sumOpenInterest"]) for entry in oi_hist]
+            oi_hist = binance_client.futures_open_interest_hist(
+                symbol=symbol, period="5m", limit=30
+            )
+            open_interest_values = [
+                float(entry["sumOpenInterest"]) for entry in oi_hist
+            ]
         except Exception:
             open_interest_values = []
 
@@ -83,7 +110,11 @@ def collect_market_data(symbol: str) -> Optional[Dict[str, Any]]:
             "funding_rates": funding_rates,
             "open_interest": {
                 "latest": open_interest_values[-1] if open_interest_values else None,
-                "average": float(np.mean(open_interest_values)) if open_interest_values else None,
+                "average": (
+                    float(np.mean(open_interest_values))
+                    if open_interest_values
+                    else None
+                ),
             },
             "intraday_series": {
                 "mid_prices": round_series(intraday_tail["mid_price"], 3),
@@ -104,5 +135,7 @@ def collect_market_data(symbol: str) -> Optional[Dict[str, Any]]:
             },
         }
     except Exception as exc:
-        logging.error("Failed to build market snapshot for %s: %s", symbol, exc, exc_info=True)
+        logging.error(
+            "Failed to build market snapshot for %s: %s", symbol, exc, exc_info=True
+        )
         return None

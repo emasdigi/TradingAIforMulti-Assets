@@ -47,41 +47,48 @@ LLM_MODELS = {
         "max_tokens": 10000,
         "temperature": 0.7,
     },
-    # "gemini_pro": {
-    #     "model_id": "google/gemini-2.5-pro",
-    #     "name": "Gemini 2.5 Pro",
-    #     "provider": "Google",
-    #     "max_tokens": 10000,
-    #     "temperature": 0.7,
-    # },
-    # "grok4": {
-    #     "model_id": "x-ai/grok-4",
-    #     "name": "Grok 4",
-    #     "provider": "Grok",
-    #     "max_tokens": 10000,
-    #     "temperature": 0.7,
-    #     "reasoning": {"effort": "low"},
-    # },
-    # "gpt5": {
-    #     "model_id": "openai/gpt-5",
-    #     "name": "GPT-5",
-    #     "provider": "OpenAI",
-    #     "max_tokens": 10000,
-    #     "temperature": 1,
-    #     "reasoning": {"enabled": False},
-    #     "response_format": {"type": "json_object"},
-    # },
-    # "claude_sonnet_4.5": {
-    #     "model_id": "anthropic/claude-sonnet-4.5",
-    #     "name": "Claude Sonnet 4.5",
-    #     "provider": "Anthropic",
-    #     "max_tokens": 10000,
-    #     "temperature": 0.7,
-    # },
+    "gemini_pro": {
+        "model_id": "google/gemini-2.5-pro",
+        "name": "Gemini 2.5 Pro",
+        "provider": "Google",
+        "max_tokens": 10000,
+        "temperature": 0.7,
+    },
+    "grok4": {
+        "model_id": "x-ai/grok-4",
+        "name": "Grok 4",
+        "provider": "Grok",
+        "max_tokens": 10000,
+        "temperature": 0.7,
+        "reasoning": {"effort": "low"},
+    },
+    "gpt5": {
+        "model_id": "openai/gpt-5",
+        "name": "GPT-5",
+        "provider": "OpenAI",
+        "max_tokens": 10000,
+        "temperature": 1,
+        "reasoning": {"enabled": False},
+        "response_format": {"type": "json_object"},
+    },
+    "claude_sonnet_4.5": {
+        "model_id": "anthropic/claude-sonnet-4.5",
+        "name": "Claude Sonnet 4.5",
+        "provider": "Anthropic",
+        "max_tokens": 10000,
+        "temperature": 0.7,
+    },
     "kimi_k2": {
         "model_id": "moonshotai/kimi-k2-thinking",
         "name": "Kimik2",
         "provider": "MoonshotAI",
+        "max_tokens": 10000,
+        "temperature": 0.7,
+    },
+    "doubao_seed": {
+        "model_id": "bytedance/seed-oss-36b-instruct",
+        "name": "Doubao Seed",
+        "provider": "Bytedance",
         "max_tokens": 10000,
         "temperature": 0.7,
     },
@@ -102,11 +109,16 @@ else:
 envConfigFilePath = f"config/config.{env}.yaml"
 envCONFIG = yaml_parser(envConfigFilePath)
 
-# --- IDSS MONGODB CONFIGURATION ---
-# MONGO DB
+# AWS Utils
 from utils.awsUtils import AWS
 
-aws = AWS(env=env, configFilePath=f"config/config.{env}.yaml")
+aws = AWS(
+    env=env,
+    configFilePath=f"config/config.{env}.yaml",
+    secret_name=envCONFIG.get("awsSecretName", ""),
+)
+
+# MONGO DB
 MONGO_DB_CONFIG = aws.get_aws_secret_manager_value(key=envCONFIG["mongo"]["secretName"])
 MONGO_DB_HOST = MONGO_DB_CONFIG.get("DATABASES_PLUANG_MONGO_HOST")
 MONGO_DB_USERNAME = MONGO_DB_CONFIG.get("DATABASES_PLUANG_MONGO_USER")
@@ -114,13 +126,23 @@ MONGO_DB_PASSWORD = MONGO_DB_CONFIG.get("DATABASES_PLUANG_MONGO_PASSWORD")
 MONGO_APP_NAME = envCONFIG["mongo"]["appName"]
 
 
+ASSET_MODE = os.getenv("ASSET_MODE", "idss")
+
+PROJECT_S3_PATH = envCONFIG["projectS3Path"]
+AI_TRADING_BOT_CONFIG = aws.get_aws_secret_manager_value(
+    key=envCONFIG["tradingBotSecretName"]
+)
+
+
+# --- ALPACA API CONFIGURATION ---
+ALPACA_API_KEY = AI_TRADING_BOT_CONFIG.get("ALPACA_API_KEY", "")
+ALPACA_SECRET_KEY = AI_TRADING_BOT_CONFIG.get("ALPACA_SECRET_KEY", "")
+
 # --- NEWS & FUNDAMENTALS ---
 NEWS_REFRESH_INTERVAL = int(
     os.getenv("NEWS_REFRESH_INTERVAL", str(3 * 60 * 60))
 )  # seconds
 
-# --- TRADING PARAMETERS ---
-ASSET_MODE = os.getenv("ASSET_MODE", "idss")
 if ASSET_MODE.lower() == "crypto":
     # --- TRADING PARAMETERS ---
     SYMBOLS = ["ETHUSDT", "SOLUSDT", "XRPUSDT", "BTCUSDT", "DOGEUSDT", "BNBUSDT"]
