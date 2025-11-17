@@ -21,6 +21,31 @@ cleanup() {
 # Set trap to cleanup on exit
 trap cleanup EXIT INT TERM
 
+# Function to refresh news cache periodically
+refresh_news_loop() {
+    # Run initial refresh immediately
+    echo "📰 Running initial news cache refresh..."
+    python -m bot.news_cache
+    echo "✅ Initial news refresh completed"
+    
+    # Then refresh every 3 hours (10800 seconds)
+    while true; do
+        sleep 10800  # 3 hours
+        echo "📰 Refreshing news cache (scheduled refresh)..."
+        python -m bot.news_cache
+        echo "✅ News refresh completed at $(date)"
+    done
+}
+
+# Start the news cache refresh loop in the background
+refresh_news_loop &
+NEWS_PID=$!
+echo "✅ News Cache Scheduler started (PID: $NEWS_PID, refreshes every 3 hours)"
+echo ""
+
+# Wait a moment for initial news cache to complete
+sleep 5
+
 # Start the trading bot in the background
 echo "📈 Starting Trading Bot..."
 python -u main.py &
@@ -48,6 +73,7 @@ echo "✅ All services running!"
 echo ""
 echo "📊 Dashboard: http://localhost:8081"
 echo "📈 Trading Bot: Active"
+echo "📰 News Scheduler: Active (refreshes every 3 hours)"
 echo ""
 echo "Press Ctrl+C to stop all services"
 echo "======================================"

@@ -40,11 +40,9 @@ Your mission: Maximize risk-adjusted returns (PnL) through systematic, disciplin
 You have exactly FOUR possible actions per decision cycle:
 1. **buy_to_enter**: Open a new LONG position (bet on price appreciation)
    - Use when: Bullish technical setup, positive momentum, risk-reward favors upside
-2. **sell_to_enter**: Open a new SHORT position (bet on price depreciation)
-   - Use when: Bearish technical setup, negative momentum, risk-reward favors downside
-3. **hold**: Maintain current positions without modification
+2. **hold**: Maintain current positions without modification
    - Use when: Existing positions are performing as expected, or no clear edge exists
-4. **close**: Exit an existing position entirely
+3. **close**: Exit an existing position entirely
    - Use when: Profit target reached, stop loss triggered, or thesis invalidated
 ## Position Management Constraints
 - **NO pyramiding**: Cannot add to existing positions (one position per coin maximum)
@@ -84,10 +82,10 @@ For EVERY trade decision, you MUST specify:
    - 0.3-0.6: Moderate confidence (standard position sizing)
    - 0.6-0.8: High confidence (larger position sizing acceptable)
    - 0.8-1.0: Very high confidence (use cautiously, beware overconfidence)
-5. **risk_usd** (float): Rupiah amount at risk (distance from entry to stop loss)
+5. **risk_idr** (float): Rupiah amount at risk (distance from entry to stop loss)
    - Calculate as: |Entry Price - Stop Loss| × Quantity
    - Example: If entering BBCA long at Rp 1,500 with stop at Rp 1,480 and quantity of 100 shares
-   - risk_usd = |1,500 - 1,480| × 100 = Rp 200
+   - risk_idr = |1,500 - 1,480| × 100 = Rp 200
 ---
 # OUTPUT FORMAT SPECIFICATION
 Return ONLY a valid JSON object with this structure:
@@ -100,7 +98,7 @@ Return ONLY a valid JSON object with this structure:
     "stop_loss": 0.0,  // Price level to cut losses.
     "leverage": 1,  // Only trade with 1x leverage.
     "confidence": 0.75,  // Your confidence in this trade (0.0-1.0). 
-    "risk_usd": 0.0,  // Dollar amount at risk (distance from entry to stop loss).
+    "risk_idr": 0.0,  // Rupiah amount at risk (distance from entry to stop loss).
     "invalidation_condition": "If price closes below X on a 3-minute candle",
     "justification": "Reason for entry/close/hold"  
   }
@@ -380,13 +378,17 @@ def create_trading_prompt(
                 "-" * 80,
             ]
         )
-    
+
         news_entries = news_cache.get_cached_news(coin, limit=3)
-        
+
         if news_entries:
             prompt_lines.append("  Recent news sentiment:")
             for entry in news_entries:
-                summary = entry.get("summary") or entry.get("snippet") or entry.get("title", "")
+                summary = (
+                    entry.get("summary")
+                    or entry.get("snippet")
+                    or entry.get("title", "")
+                )
                 summary = summary.replace("\n", " ").strip()
                 sentiment = (entry.get("sentiment") or "unknown").upper()
                 confidence = entry.get("sentiment_confidence")
@@ -395,7 +397,9 @@ def create_trading_prompt(
                 source = entry.get("source")
                 freshness = describe_freshness(entry)
                 if freshness:
-                    prompt_lines.append(f"    - [{sentiment}] {summary} — {source} (published {freshness})")
+                    prompt_lines.append(
+                        f"    - [{sentiment}] {summary} — {source} (published {freshness})"
+                    )
                 else:
                     prompt_lines.append(f"    - [{sentiment}] {summary} — {source}")
 
@@ -444,8 +448,8 @@ def create_trading_prompt(
                     "invalidation_condition": pos["invalidation_condition"],
                 },
                 "confidence": pos["confidence"],
-                "risk_usd": pos["risk_usd"],
-                "notional_usd": pos["quantity"] * current_price,
+                "risk_idr": pos.get("risk_idr", pos.get("risk_usd", 0.0)),
+                "notional_idr": pos["quantity"] * current_price,
                 "fees_paid": pos.get("fees_paid", 0.0),
             }
             prompt_lines.append(f"{coin} position data: {json.dumps(position_payload)}")

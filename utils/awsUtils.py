@@ -32,9 +32,20 @@ class AWS:
 
         self.env = env
         self.CONFIG = yaml_parser(configFilePath)
-        self.secretMap = json_parser(f"/workspace/config/secret-map/{env}.json")
         self.cloud = "AWS"
         self.credentialViaAwsKey = env in ["VM", "development"]
+
+        # Load secret map only if not using AWS key credentials
+        # For VM/development, we use AWS credentials instead
+        if not self.credentialViaAwsKey:
+            secret_map_path = f"/workspace/config/secret-map/{env}.json"
+            if os.path.exists(secret_map_path):
+                self.secretMap = json_parser(secret_map_path)
+            else:
+                self.secretMap = {}
+        else:
+            self.secretMap = {}
+
         if self.credentialViaAwsKey:
             self.aws_client_init()
         else:
@@ -99,9 +110,7 @@ class AWS:
             if secret in self.awsKey.keys():
                 self.storageOptions["secret"] = self.awsKey[secret]
                 break
-        self.awsClient = boto3.client(
-            "s3"
-        )
+        self.awsClient = boto3.client("s3")
         # Create a Secrets Manager client
         self.awsSecretManagerClient = boto3.session.Session().client(
             service_name="secretsmanager",

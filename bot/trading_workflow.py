@@ -56,6 +56,7 @@ def _to_serializable(value: Any) -> Any:
         return float(value)
     return value
 
+
 def is_idss_break_time() -> bool:
     """
     Check if it's currently break time for Indonesian Stock Market (IDSS).
@@ -78,9 +79,9 @@ def is_idss_break_time() -> bool:
 def is_market_open() -> bool:
     """
     Check if the market is currently open based on ASSET_MODE.
-    
+
     US Stock Market: 9:30 AM - 4:00 PM ET, Monday-Friday
-    Indonesian Stock Market (IDSS): 
+    Indonesian Stock Market (IDSS):
         - Session 1: 09:00 - 12:00 WIB
         - Break: 12:00 - 13:30 WIB
         - Session 2: 13:30 - 15:00 WIB (includes pre-closing auction)
@@ -127,7 +128,7 @@ def is_market_open() -> bool:
     else:
         # For crypto or other asset modes, market is always open
         return True
-        
+
 
 class MarketDataCoordinator:
     """Coordinates shared market data between concurrent trading loops."""
@@ -139,12 +140,17 @@ class MarketDataCoordinator:
         self._last_updated: Optional[datetime] = None
         self._fetch_in_progress = False
 
-    def get_market_snapshots(self, wait_for_update: bool = True) -> Dict[str, Dict[str, Any]]:
+    def get_market_snapshots(
+        self, wait_for_update: bool = True
+    ) -> Dict[str, Dict[str, Any]]:
         if wait_for_update:
             self._update_event.wait(timeout=config.CHECK_INTERVAL * 2)
 
         with self._lock:
-            return {coin: snapshot.copy() for coin, snapshot in self._market_snapshots.items()}
+            return {
+                coin: snapshot.copy()
+                for coin, snapshot in self._market_snapshots.items()
+            }
 
     def fetch_and_update(self) -> Dict[str, Dict[str, Any]]:
         freshness_threshold = max(1, int(config.CHECK_INTERVAL * 0.1))
@@ -156,10 +162,15 @@ class MarketDataCoordinator:
                 and (now - self._last_updated).total_seconds() < freshness_threshold
                 and self._market_snapshots
             ):
-                return {coin: snapshot.copy() for coin, snapshot in self._market_snapshots.items()}
+                return {
+                    coin: snapshot.copy()
+                    for coin, snapshot in self._market_snapshots.items()
+                }
 
             if self._fetch_in_progress:
-                logging.debug("[MarketDataCoordinator] Fetch in progress; waiting for data...")
+                logging.debug(
+                    "[MarketDataCoordinator] Fetch in progress; waiting for data..."
+                )
                 wait_event = self._update_event
             else:
                 self._fetch_in_progress = True
@@ -169,10 +180,15 @@ class MarketDataCoordinator:
         if wait_event is not None:
             wait_event.wait(timeout=config.CHECK_INTERVAL * 2)
             with self._lock:
-                return {coin: snapshot.copy() for coin, snapshot in self._market_snapshots.items()}
+                return {
+                    coin: snapshot.copy()
+                    for coin, snapshot in self._market_snapshots.items()
+                }
 
         try:
-            logging.info("[MarketDataCoordinator] Fetching market data for all symbols...")
+            logging.info(
+                "[MarketDataCoordinator] Fetching market data for all symbols..."
+            )
             market_snapshots: Dict[str, Dict[str, Any]] = {}
             for symbol in config.SYMBOLS:
                 snapshot = data_processing.collect_market_data(symbol)
@@ -180,7 +196,9 @@ class MarketDataCoordinator:
                     market_snapshots[snapshot["coin"]] = snapshot
 
             if len(market_snapshots) != len(config.SYMBOLS):
-                logging.warning("[MarketDataCoordinator] Incomplete market data snapshot fetched.")
+                logging.warning(
+                    "[MarketDataCoordinator] Incomplete market data snapshot fetched."
+                )
 
             with self._lock:
                 self._market_snapshots = market_snapshots
@@ -193,7 +211,9 @@ class MarketDataCoordinator:
                 self._last_updated,
             )
 
-            return {coin: snapshot.copy() for coin, snapshot in market_snapshots.items()}
+            return {
+                coin: snapshot.copy() for coin, snapshot in market_snapshots.items()
+            }
 
         finally:
             with self._lock:
@@ -208,7 +228,9 @@ class TradingState:
 
     def __init__(self, model_name: str):
         self.model_name = model_name
-        self.initial_capital: float = getattr(config, "CAPITAL_PER_LLM", config.START_CAPITAL)
+        self.initial_capital: float = getattr(
+            config, "CAPITAL_PER_LLM", config.START_CAPITAL
+        )
         self.balance: float = self.initial_capital
         self.positions: Dict[str, Dict[str, Any]] = {}
         self.equity_history: list[float] = []
@@ -248,9 +270,18 @@ class TradingState:
                 self.positions = positions
                 for pos in self.positions.values():
                     if "fees_paid" not in pos:
-                        pos["fees_paid"] = abs(pos["quantity"]) * pos["entry_price"] * config.TRADING_FEE_RATE
+                        pos["fees_paid"] = (
+                            abs(pos["quantity"])
+                            * pos["entry_price"]
+                            * config.TRADING_FEE_RATE
+                        )
+                    # Backward compatibility: rename risk_usd to risk_idr for Indonesian stocks
+                    if "risk_usd" in pos and "risk_idr" not in pos:
+                        pos["risk_idr"] = pos.pop("risk_usd")
 
-            fees_candidate = data.get("last_total_fees_paid", data.get("total_fees_paid"))
+            fees_candidate = data.get(
+                "last_total_fees_paid", data.get("total_fees_paid")
+            )
             fees_value = _to_float(fees_candidate)
             if fees_value is not None:
                 self.total_fees_paid = fees_value
@@ -287,7 +318,9 @@ class TradingState:
     def _load_state_from_csv(self):
         """Fallback loader that restores state from the latest CSV snapshot."""
         if not self._state_csv.exists():
-            logging.info("[%s] No existing state file found; starting fresh.", self.model_name)
+            logging.info(
+                "[%s] No existing state file found; starting fresh.", self.model_name
+            )
             return
 
         try:
@@ -329,7 +362,11 @@ class TradingState:
                 self.positions = json.loads(positions_raw)
                 for pos in self.positions.values():
                     if "fees_paid" not in pos:
-                        pos["fees_paid"] = abs(pos["quantity"]) * pos["entry_price"] * config.TRADING_FEE_RATE
+                        pos["fees_paid"] = (
+                            abs(pos["quantity"])
+                            * pos["entry_price"]
+                            * config.TRADING_FEE_RATE
+                        )
                 positions_loaded = len(self.positions)
             except json.JSONDecodeError as e:
                 logging.error(
@@ -424,7 +461,9 @@ class TradingState:
             with open(self._state_file, "w") as f:
                 json.dump(payload, f, indent=2)
         except Exception as e:
-            logging.error("[%s] Failed to save state: %s", self.model_name, e, exc_info=True)
+            logging.error(
+                "[%s] Failed to save state: %s", self.model_name, e, exc_info=True
+            )
 
     def calculate_unrealized_pnl(self, coin: str, current_price: float) -> float:
         pos = self.positions[coin]
@@ -519,7 +558,6 @@ def get_llm_decisions(
         )
         model_config = config.LLM_MODELS[model_name]
 
-
         response = llm_client.chat.completions.create(
             model=model_config["model_id"],
             messages=[
@@ -527,7 +565,7 @@ def get_llm_decisions(
                 {"role": "user", "content": prompt},
             ],
             temperature=model_config["temperature"],
-            max_completion_tokens=model_config["max_tokens"],
+            max_tokens=model_config["max_tokens"],
             response_format={"type": "json_object"},
         )
         message = response.choices[0].message
@@ -574,7 +612,9 @@ def get_llm_decisions(
             try:
                 decision_payload = json.loads(normalized_content)
             except json.JSONDecodeError as exc:
-                logging.error("Failed to parse LLM content as JSON: %s", exc, exc_info=True)
+                logging.error(
+                    "Failed to parse LLM content as JSON: %s", exc, exc_info=True
+                )
                 logging.debug("Raw LLM content: %s", normalized_content)
                 return None
             log_content = normalized_content
@@ -777,6 +817,7 @@ Generate ONE punchy sentence summarizing your portfolio stance."""
 
 MIN_DATA_POINTS_FOR_SHARPE = int(60 / (config.CHECK_INTERVAL / 60))
 
+
 def calculate_sharpe_ratio(
     equity_values: Iterable[float],
     period_seconds: float,
@@ -865,7 +906,11 @@ def execute_trade(
     if signal == "entry":
         # valid no existing position
         if coin in state.positions:
-            logging.warning("[%s] Already have position for %s, skipping entry", state.model_name, coin)
+            logging.warning(
+                "[%s] Already have position for %s, skipping entry",
+                state.model_name,
+                coin,
+            )
             return
 
         # extract decision parameters
@@ -874,23 +919,37 @@ def execute_trade(
         quantity = decision.get("quantity", 0.0)
         profit_target = decision.get("profit_target", 0.0)
         stop_loss = decision.get("stop_loss", 0.0)
-        risk_usd = decision.get("risk_usd", 0.0)
+        risk_idr = decision.get("risk_idr", 0.0)
         # Calculate position size based on risk
         stop_distance = abs(price - stop_loss)
         if stop_distance == 0:
-            logging.warning("[%s] %s: Invalid stop loss, skipping", state.model_name, coin)
+            logging.warning(
+                "[%s] %s: Invalid stop loss, skipping", state.model_name, coin
+            )
             return
 
         if price <= 0:
-            logging.warning("[%s] %s: Invalid price %.6f, skipping", state.model_name, coin, price)
+            logging.warning(
+                "[%s] %s: Invalid price %.6f, skipping", state.model_name, coin, price
+            )
             return
 
         if leverage <= 0:
-            logging.warning("[%s] %s: Invalid leverage %.4f, skipping", state.model_name, coin, leverage)
+            logging.warning(
+                "[%s] %s: Invalid leverage %.4f, skipping",
+                state.model_name,
+                coin,
+                leverage,
+            )
             return
 
         if quantity <= 0:
-            logging.warning("[%s] %s: Non-positive quantity %.6f, skipping", state.model_name, coin, quantity)
+            logging.warning(
+                "[%s] %s: Non-positive quantity %.6f, skipping",
+                state.model_name,
+                coin,
+                quantity,
+            )
             return
 
         original_quantity = quantity
@@ -938,7 +997,7 @@ def execute_trade(
             margin_required = position_value / leverage
             entry_fee = position_value * fee_rate
             total_cost = margin_required + entry_fee
-            risk_usd = stop_distance * quantity
+            risk_idr = stop_distance * quantity
 
         if total_cost > state.balance:
             logging.warning(
@@ -961,7 +1020,7 @@ def execute_trade(
             "leverage": leverage,
             "confidence": decision.get("confidence", 0.5),
             "margin": margin_required,
-            "risk_usd": risk_usd,
+            "risk_idr": risk_idr,
             "unrealized_pnl": 0.0,  # Initialize at 0 on entry
             "invalidation_condition": decision.get("invalidation_condition", ""),
             "justification": decision.get("justification", ""),
@@ -980,7 +1039,7 @@ def execute_trade(
             price,
             entry_fee,
         )
-        
+
         trade_data = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "coin": coin,
@@ -998,7 +1057,7 @@ def execute_trade(
             "fee": entry_fee,
         }
         trade_data["net_pnl"] = trade_data["pnl"] - entry_fee
-        
+
         utils.log_trade(trade_data, model_name=state.model_name)
         state.current_iteration_trades.append(trade_data)
 
@@ -1048,10 +1107,10 @@ def execute_trade(
         trade_data["net_pnl"] = net_trade_pnl
         trade_data["position_fee_total"] = total_position_fees
         trade_data["position_net_pnl"] = net_position_pnl
-        
+
         utils.log_trade(trade_data, model_name=state.model_name)
         state.current_iteration_trades.append(trade_data)
-        
+
         # Remove position
         del state.positions[coin]
 
@@ -1065,20 +1124,30 @@ def run_trading_loop(model_name: str):
     state.load_state()
 
     logging.info("[%s] Initializing clients...", model_name)
-    
+
     # Only check Binance client for crypto mode
     if config.ASSET_MODE.lower() == "crypto":
         if not clients.get_binance_client():
-            logging.critical("[%s] Failed to initialize Binance client. Exiting.", model_name)
+            logging.critical(
+                "[%s] Failed to initialize Binance client. Exiting.", model_name
+            )
             return
-    
+
     # LLM client is always required
     if not clients.get_llm_client():
         logging.critical("[%s] Failed to initialize LLM client. Exiting.", model_name)
         return
 
-    logging.info("[%s] Starting capital: $%.2f", model_name, state.initial_capital)
-    logging.info("[%s] Monitoring: %s", model_name, list(config.SYMBOL_TO_COIN.values()))
+    currency_symbol = utils.get_currency_symbol()
+    logging.info(
+        "[%s] Starting capital: %s%.2f",
+        model_name,
+        currency_symbol,
+        state.initial_capital,
+    )
+    logging.info(
+        "[%s] Monitoring: %s", model_name, list(config.SYMBOL_TO_COIN.values())
+    )
 
     while True:
         try:
@@ -1086,19 +1155,25 @@ def run_trading_loop(model_name: str):
                 # Check if it's break time (12:00 - 13:30 WIB)
                 if is_idss_break_time():
                     wib_tz = ZoneInfo("Asia/Jakarta")
-                    current_time = datetime.now(wib_tz).strftime('%H:%M:%S %Z')
-                    logging.info(f"IDX market is on break (current time: {current_time}). Sleeping for 1 minute...")
+                    current_time = datetime.now(wib_tz).strftime("%H:%M:%S %Z")
+                    logging.info(
+                        f"IDX market is on break (current time: {current_time}). Sleeping for 1 minute..."
+                    )
                     time.sleep(60)  # Sleep for 1 minute
                     continue  # Skip this iteration and retry
 
                 # Check if market is closed for the day
                 if not is_market_open():
                     wib_tz = ZoneInfo("Asia/Jakarta")
-                    current_time = datetime.now(wib_tz).strftime('%Y-%m-%d %H:%M:%S %Z')
-                    logging.info(f"IDX market is now closed (current time: {current_time}). Waiting for market to open...")
+                    current_time = datetime.now(wib_tz).strftime("%Y-%m-%d %H:%M:%S %Z")
+                    logging.info(
+                        f"IDX market is now closed (current time: {current_time}). Waiting for market to open..."
+                    )
                     state.save_state()
                     state.invocation_count = 0  # Reset iteration count
-                    logging.info("Sleeping for 1 minute before checking market status again...")
+                    logging.info(
+                        "Sleeping for 1 minute before checking market status again..."
+                    )
                     time.sleep(60)  # Sleep for 1 minute
                     continue  # Skip this iteration and retry
 
@@ -1114,7 +1189,9 @@ def run_trading_loop(model_name: str):
             # 1. Fetch shared market data snapshot
             market_snapshots = _market_coordinator.fetch_and_update()
             if not market_snapshots:
-                logging.warning("[%s] No market data available; skipping iteration.", model_name)
+                logging.warning(
+                    "[%s] No market data available; skipping iteration.", model_name
+                )
                 time.sleep(config.CHECK_INTERVAL)
                 continue
 
@@ -1129,6 +1206,16 @@ def run_trading_loop(model_name: str):
             if decisions:
                 for coin, decision in decisions.items():
                     if coin not in config.SYMBOL_TO_COIN.values():
+                        continue
+
+                    # Validate that decision is a dictionary
+                    if not isinstance(decision, dict):
+                        logging.warning(
+                            "[%s] Invalid decision format for %s: expected dict, got %s. Skipping.",
+                            model_name,
+                            coin,
+                            type(decision).__name__,
+                        )
                         continue
 
                     utils.log_ai_decision(
@@ -1180,7 +1267,9 @@ def run_trading_loop(model_name: str):
                 print(summary_header)
                 print(f"{Fore.WHITE}{professional_summary}{Style.RESET_ALL}")
                 print(f"{Fore.GREEN}{'='*63}{Style.RESET_ALL}\n")
-                logging.info("[%s] Portfolio Summary: %s", model_name, professional_summary)
+                logging.info(
+                    "[%s] Portfolio Summary: %s", model_name, professional_summary
+                )
 
                 # Add summaries to the state dict before logging
                 summary["portfolio_summary"] = professional_summary
@@ -1216,12 +1305,21 @@ def run_trading_loop(model_name: str):
                         model_name=model_name,
                     )
                     utils.send_telegram_message(telegram_message, parse_mode="HTML")
-                    logging.info("[%s] Telegram notification sent successfully", model_name)
+                    logging.info(
+                        "[%s] Telegram notification sent successfully", model_name
+                    )
                 except Exception as e:
-                    logging.error("[%s] Failed to send Telegram notification: %s", model_name, e, exc_info=True)
+                    logging.error(
+                        "[%s] Failed to send Telegram notification: %s",
+                        model_name,
+                        e,
+                        exc_info=True,
+                    )
 
             # 6. Wait for next interval
-            logging.info("[%s] Waiting %d seconds...", model_name, config.CHECK_INTERVAL)
+            logging.info(
+                "[%s] Waiting %d seconds...", model_name, config.CHECK_INTERVAL
+            )
             time.sleep(config.CHECK_INTERVAL)
 
         except KeyboardInterrupt:

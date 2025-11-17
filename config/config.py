@@ -5,6 +5,7 @@ Configuration file for the Multi-LLM Trading Bot.
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+from utils.utils import json_parser, yaml_parser
 
 # Load environment variables from .env file
 load_dotenv()
@@ -32,20 +33,20 @@ LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "gpt-4o")
 
 # Two LLM Models for Focused Testing (Claude Sonnet and Gemini Pro)
 LLM_MODELS = {
-    # "deepseek_v3.1": {
-    #     "model_id": "deepseek/deepseek-chat-v3.1",
-    #     "name": "DeepSeek V3.1",
-    #     "provider": "DeepSeek",
-    #     "max_tokens": 10000,
-    #     "temperature": 0.7,
-    # },
-    # "qwen3_max": {
-    #     "model_id": "qwen/qwen3-max",
-    #     "name": "Qwen3 Max",
-    #     "provider": "Qwen",
-    #     "max_tokens": 10000,
-    #     "temperature": 0.7,
-    # },
+    "deepseek_v3.1": {
+        "model_id": "deepseek/deepseek-chat-v3.1",
+        "name": "DeepSeek V3.1",
+        "provider": "DeepSeek",
+        "max_tokens": 10000,
+        "temperature": 0.7,
+    },
+    "qwen3_max": {
+        "model_id": "qwen/qwen3-max",
+        "name": "Qwen3 Max",
+        "provider": "Qwen",
+        "max_tokens": 10000,
+        "temperature": 0.7,
+    },
     # "gemini_pro": {
     #     "model_id": "google/gemini-2.5-pro",
     #     "name": "Gemini 2.5 Pro",
@@ -89,14 +90,34 @@ LLM_MODELS = {
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
+globalConfigFilePath = "config/config.global.yaml"
+globalCONFIG = yaml_parser(globalConfigFilePath)
+filePathEnv = globalCONFIG["filePathEnv"]
+if os.path.isfile(filePathEnv):
+    env = json_parser(filePathEnv)["env"]
+else:
+    env = os.environ.get("env", globalCONFIG["VM_env"])
+
+
+envConfigFilePath = f"config/config.{env}.yaml"
+envCONFIG = yaml_parser(envConfigFilePath)
+
 # --- IDSS MONGODB CONFIGURATION ---
-MONGO_DB_USERNAME = os.getenv("MONGO_DB_USERNAME", "")
-MONGO_DB_PASSWORD = os.getenv("MONGO_DB_PASSWORD", "")
-MONGO_DB_HOST = os.getenv("MONGO_DB_HOST", "")
-MONGO_APP_NAME = os.getenv("MONGO_APP_NAME", "TradingAIforMultiAssets")
+# MONGO DB
+from utils.awsUtils import AWS
+
+aws = AWS(env=env, configFilePath=f"config/config.{env}.yaml")
+MONGO_DB_CONFIG = aws.get_aws_secret_manager_value(key=envCONFIG["mongo"]["secretName"])
+MONGO_DB_HOST = MONGO_DB_CONFIG.get("DATABASES_PLUANG_MONGO_HOST")
+MONGO_DB_USERNAME = MONGO_DB_CONFIG.get("DATABASES_PLUANG_MONGO_USER")
+MONGO_DB_PASSWORD = MONGO_DB_CONFIG.get("DATABASES_PLUANG_MONGO_PASSWORD")
+MONGO_APP_NAME = envCONFIG["mongo"]["appName"]
+
 
 # --- NEWS & FUNDAMENTALS ---
-NEWS_REFRESH_INTERVAL = int(os.getenv("NEWS_REFRESH_INTERVAL", str(3 * 60 * 60)))  # seconds
+NEWS_REFRESH_INTERVAL = int(
+    os.getenv("NEWS_REFRESH_INTERVAL", str(3 * 60 * 60))
+)  # seconds
 
 # --- TRADING PARAMETERS ---
 ASSET_MODE = os.getenv("ASSET_MODE", "idss")
@@ -112,7 +133,19 @@ if ASSET_MODE.lower() == "crypto":
         "BNBUSDT": "BNB",
     }
 elif ASSET_MODE.lower() == "idss":
-    SYMBOLS = ["BBCA", "GOTO", "BYAN", "BMRI", "BBRI", "TLKM", "ASII", "TPIA", "BBNI", "UNVR", "HMSP"]
+    SYMBOLS = [
+        "BBCA",
+        "GOTO",
+        "BYAN",
+        "BMRI",
+        "BBRI",
+        "TLKM",
+        "ASII",
+        "TPIA",
+        "BBNI",
+        "UNVR",
+        "HMSP",
+    ]
     SYMBOL_TO_COIN = {
         "BBCA": "BBCA",
         "GOTO": "GOTO",
@@ -127,7 +160,18 @@ elif ASSET_MODE.lower() == "idss":
         "HMSP": "HMSP",
     }
 elif ASSET_MODE.lower() == "us_stock":
-    SYMBOLS = ["AAPL", "MSFT", "GOOG", "AMZN", "TSLA", "NVDA", "IBIT", "TQQQ", "SQQQ", "UVIX"]
+    SYMBOLS = [
+        "AAPL",
+        "MSFT",
+        "GOOG",
+        "AMZN",
+        "TSLA",
+        "NVDA",
+        "IBIT",
+        "TQQQ",
+        "SQQQ",
+        "UVIX",
+    ]
     SYMBOL_TO_COIN = {
         "AAPL": "AAPL",
         "MSFT": "MSFT",
@@ -147,7 +191,9 @@ START_CAPITAL = 100000000  # Rp 100,000,000 (~$6,500 USD) for IDSS mode
 CAPITAL_PER_LLM = START_CAPITAL  # Each LLM model gets full starting capital
 
 # --- FEE & EXECUTION COSTS ---
-TRADING_FEE_RATE = float(os.getenv("TRADING_FEE_RATE", "0.0003"))  # 0.03% per side by default
+TRADING_FEE_RATE = float(
+    os.getenv("TRADING_FEE_RATE", "0.0003")
+)  # 0.03% per side by default
 
 # --- INDICATOR SETTINGS ---
 EMA_LEN = 20
