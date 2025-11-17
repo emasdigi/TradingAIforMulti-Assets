@@ -41,6 +41,7 @@ class AWS:
             self.load_env_as_dict()
         
         AWS_SECRET_CONFIG = {}
+        print(f"ENV: {env}, secret_name: {secret_name}")
         if secret_name:
             AWS_SECRET_CONFIG = self.get_aws_secret_manager_value(key=secret_name)
         AWS_ACCESS_KEY = AWS_SECRET_CONFIG.get("AWS_ACCESS_KEY", "")
