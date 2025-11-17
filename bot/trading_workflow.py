@@ -16,14 +16,9 @@ import pandas as pd
 from colorama import Fore, Style
 from openai import OpenAI
 
-<<<<<<< HEAD
 from config import config
 from . import clients
 from utils import utils
-=======
-from . import clients, utils
-from config import config
->>>>>>> idss
 
 if config.ASSET_MODE.lower() == "crypto":
     from . import data_processing as data_processing
@@ -260,9 +255,16 @@ class TradingState:
 
     def load_state(self):
         """Load persisted balance and positions if available."""
-<<<<<<< HEAD
         data: Dict[str, Any] = {}
 
+        # Try to download from S3 first
+        download_success = config.aws.download_directory_from_s3(s3_base_path=config.PROJECT_S3_PATH, local_directory=config.DATA_DIR)
+        
+        if download_success["success"] > 0:
+            logging.info("Successfully downloaded state from S3: %s", config.PROJECT_S3_PATH)
+        else:
+            logging.info("Could not download from S3, will check for local state file")
+            
         if self._state_file.exists():
             try:
                 with open(self._state_file, "r") as f:
@@ -273,35 +275,6 @@ class TradingState:
                     self.model_name,
                     e,
                     exc_info=True,
-=======
-        # Try to download from S3 first
-        download_success = config.aws.download_directory_from_s3(s3_base_path=config.PROJECT_S3_PATH, local_directory=config.DATA_DIR)
-        
-        if download_success["success"] > 0:
-            logging.info("Successfully downloaded state from S3: %s", config.PROJECT_S3_PATH)
-        else:
-            logging.info("Could not download from S3, will check for local state file")
-        
-        # Check if local file exists (either downloaded or already present)
-        if not utils.STATE_JSON.exists():
-            logging.info("No existing state file found; starting fresh.")
-            return
-            
-        try:
-            with open(utils.STATE_JSON, "r") as f:
-                data = json.load(f)
-            self.balance = float(data.get("balance", config.START_CAPITAL))
-            
-            # Load positions if they exist
-            if "positions" in data and isinstance(data["positions"], dict):
-                self.positions = data["positions"]
-                source = "S3" if download_success else "local file"
-                logging.info(
-                    "Loaded state from %s (balance: %.2f, positions: %d)",
-                    source,
-                    self.balance,
-                    len(self.positions)
->>>>>>> idss
                 )
 
         if data:
@@ -355,7 +328,6 @@ class TradingState:
                         pos.get("quantity", 0),
                         pos.get("leverage", 1),
                     )
-<<<<<<< HEAD
             return
 
         self._load_state_from_csv()
@@ -443,14 +415,6 @@ class TradingState:
                     pos.get("entry_price", 0),
                     pos.get("quantity", 0),
                     pos.get("leverage", 1),
-=======
-            else:
-                source = "S3" if download_success else "local file"
-                logging.info(
-                    "Loaded state from %s (balance: %.2f, no positions)", 
-                    source, 
-                    self.balance
->>>>>>> idss
                 )
 
     def _hydrate_equity_history(self, df: Optional[pd.DataFrame] = None) -> bool:
@@ -510,25 +474,16 @@ class TradingState:
                 payload["last_total_fees_paid"] = total_fees_paid
 
         try:
-<<<<<<< HEAD
             self._state_dir.mkdir(parents=True, exist_ok=True)
             with open(self._state_file, "w") as f:
                 json.dump(payload, f, indent=2)
-=======
-            # Save to local file
-            with open(utils.STATE_JSON, "w") as f:
-                json.dump(
-                    {"balance": self.balance, "positions": self.positions}, f, indent=2
-                )
-            
+
             # Upload to S3
             upload_success = config.aws.upload_directory_to_s3(local_directory=config.DATA_DIR, s3_base_path=config.PROJECT_S3_PATH)
             if upload_success["success"] > 0:
                 logging.info("State saved locally and uploaded to S3: %s", config.PROJECT_S3_PATH)
             else:
                 logging.warning("State saved locally but S3 upload failed")
-                
->>>>>>> idss
         except Exception as e:
             logging.error(
                 "[%s] Failed to save state: %s", self.model_name, e, exc_info=True
@@ -1269,7 +1224,6 @@ def run_trading_loop(model_name: str):
     state = TradingState(model_name)
     state.load_state()
 
-<<<<<<< HEAD
     logging.info("[%s] Initializing clients...", model_name)
 
     # Only check Binance client for crypto mode
@@ -1283,11 +1237,6 @@ def run_trading_loop(model_name: str):
     # LLM client is always required
     if not clients.get_llm_client():
         logging.critical("[%s] Failed to initialize LLM client. Exiting.", model_name)
-=======
-    logging.info("Initializing clients...")
-    if not clients.get_llm_client():
-        logging.critical("Failed to initialize required API clients. Exiting.")
->>>>>>> idss
         return
 
     currency_symbol = utils.get_currency_symbol()
@@ -1303,8 +1252,6 @@ def run_trading_loop(model_name: str):
 
     while True:
         try:
-<<<<<<< HEAD
-=======
             # Check if market is still open (for US stocks)
             if config.ASSET_MODE.lower() == "us_stock":
                 if not is_market_open():
@@ -1317,35 +1264,10 @@ def run_trading_loop(model_name: str):
                     time.sleep(60)  # Sleep for 1 minute
                     continue  # Skip this iteration and retry
             
->>>>>>> idss
             if config.ASSET_MODE.lower() == "idss":
                 # Check if it's break time (12:00 - 13:30 WIB)
                 if is_idss_break_time():
                     wib_tz = ZoneInfo("Asia/Jakarta")
-<<<<<<< HEAD
-                    current_time = datetime.now(wib_tz).strftime("%H:%M:%S %Z")
-                    logging.info(
-                        f"IDX market is on break (current time: {current_time}). Sleeping for 1 minute..."
-                    )
-                    time.sleep(60)  # Sleep for 1 minute
-                    continue  # Skip this iteration and retry
-
-                # Check if market is closed for the day
-                if not is_market_open():
-                    wib_tz = ZoneInfo("Asia/Jakarta")
-                    current_time = datetime.now(wib_tz).strftime("%Y-%m-%d %H:%M:%S %Z")
-                    logging.info(
-                        f"IDX market is now closed (current time: {current_time}). Waiting for market to open..."
-                    )
-                    state.save_state()
-                    state.invocation_count = 0  # Reset iteration count
-                    logging.info(
-                        "Sleeping for 1 minute before checking market status again..."
-                    )
-                    time.sleep(60)  # Sleep for 1 minute
-                    continue  # Skip this iteration and retry
-
-=======
                     current_time = datetime.now(wib_tz).strftime('%H:%M:%S %Z')
                     logging.info(f"IDX market is on break (current time: {current_time}). Sleeping for 1 minute...")
                     time.sleep(60)  # Sleep for 1 minute
@@ -1363,7 +1285,6 @@ def run_trading_loop(model_name: str):
                     continue  # Skip this iteration and retry
 
 
->>>>>>> idss
             state.invocation_count += 1
             state.current_iteration_messages = []
             state.current_iteration_trades = []  # Reset trades for this iteration
