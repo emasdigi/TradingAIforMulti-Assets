@@ -4,8 +4,13 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import time
 import os
+import sys
 from pathlib import Path
 import pytz
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from config import config
 
 # Page Configuration
 st.set_page_config(
@@ -205,7 +210,7 @@ st.markdown(
 )
 
 # Data paths (relative to project root)
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 
 
@@ -258,8 +263,9 @@ def parse_position_details(position_json):
 
 
 def format_currency(value):
-    """Format currency values"""
-    return f"${value:,.2f}"
+    """Format currency values based on ASSET_MODE"""
+    currency_symbol = "Rp" if config.ASSET_MODE.lower() == "idss" else "$"
+    return f"{currency_symbol}{value:,.2f}"
 
 
 def format_percent(value):

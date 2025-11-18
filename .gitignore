@@ -7,3 +7,5 @@ ai_messages.csv
 portfolio_state.json
 .DS_Store
 .venv/
+AWS_key.json
+data/*

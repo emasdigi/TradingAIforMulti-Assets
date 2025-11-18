@@ -1,0 +1,24 @@
+mongo:
+  secretName: STAGING_IDSS_MONGO_CONFIG
+  appName: mongo-staging-jakarta-v7-pluang
+kafka:
+  consumer:
+    topic:
+      idssOhlc: idss-realtime-v2
+    groupId: trading-ai-bot-consumer-staging
+  # producer:
+  #   topic:
+  #     flowTardingHedgingOrders: flow-trading-order-request
+  secretName: STAGING_KAFKA_CONFIG_NODE
+tradingBotSecretName: STAGING_TRADING_AI_BOT
+projectS3Path: s3://trading-ai-multi-assets-staging/
+awsSecretName: STAGING_QUANT_AWS_CLIENT
+awsRegionName: ap-southeast-3
+filePathAwsKey: AWS_key.json
+slackAlert:
+  channel: quant-alert-dev
+  infoChannel: quant-alert-dev
+  attentionEmailList:
+    - sungjin.oh@pluang.com
+    - to.vanhung@pluang.com
+    - rui.zhao@pluang.com

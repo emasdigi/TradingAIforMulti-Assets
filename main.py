@@ -8,7 +8,7 @@ from typing import List
 
 from dotenv import load_dotenv
 
-from bot import config
+from config import config
 from bot.trading_workflow import run_trading_loop
 
 
