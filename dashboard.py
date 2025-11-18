@@ -81,10 +81,7 @@ def discover_model_directories() -> Dict[str, Path]:
     """Return mapping of model name to data directory."""
     model_dirs: Dict[str, Path] = {}
 
-    # Legacy data (pre multi-model) stored directly under DATA_DIR
-    if STATE_CSV.exists():
-        model_dirs["combined"] = DATA_DIR
-
+    # Only discover models that have their own folders
     for path in sorted(DATA_DIR.iterdir()):
         if not path.is_dir():
             continue
@@ -104,8 +101,7 @@ def get_model_csv_path(model_name: str, filename: str) -> Path:
 
 
 def format_model_label(model_name: str) -> str:
-    if model_name == "combined":
-        return "All Models (legacy)"
+    """Format model name for display in the dashboard."""
     return model_name.replace("_", " ").title()
 
 
