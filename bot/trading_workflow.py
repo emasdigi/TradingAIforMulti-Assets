@@ -621,6 +621,7 @@ def get_llm_decisions(
 
         model_name_lower = model_name.lower()
         if normalized_content and "claude" in model_name_lower:
+            print(normalized_content)
             normalized_content = (
                 normalized_content.replace("```json", "").replace("```", "").strip()
             )

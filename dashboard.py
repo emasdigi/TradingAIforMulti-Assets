@@ -24,6 +24,10 @@ DEFAULT_DATA_DIR = BASE_DIR / "data"
 DATA_DIR = Path(os.getenv("TRADEBOT_DATA_DIR", str(DEFAULT_DATA_DIR))).expanduser()
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+# Determine currency symbol based on asset mode
+ASSET_MODE = os.getenv("ASSET_MODE", "idss").lower()
+CURRENCY_SYMBOL = "Rp" if ASSET_MODE == "idss" else "$"
+
 STATE_CSV = DATA_DIR / "portfolio_state.csv"
 TRADES_CSV = DATA_DIR / "trade_history.csv"
 DECISIONS_CSV = DATA_DIR / "ai_decisions.csv"
@@ -659,14 +663,16 @@ def render_combined_equity_chart(
             x=alt.X("timestamp:T", title="Time"),
             y=alt.Y(
                 "Value:Q",
-                title="Portfolio Equity ($)",
+                title=f"Portfolio Equity ({CURRENCY_SYMBOL})",
                 scale=alt.Scale(domain=[lower_bound, upper_bound]),
             ),
             color=alt.Color("Series:N", title="Series", scale=series_scale),
             tooltip=[
                 alt.Tooltip("timestamp:T", title="Timestamp"),
                 alt.Tooltip("Series:N", title="Series"),
-                alt.Tooltip("Value:Q", title="Equity", format="$.2f"),
+                alt.Tooltip(
+                    "Value:Q", title=f"Equity ({CURRENCY_SYMBOL})", format=",.2f"
+                ),
             ],
         )
         .properties(height=320)
@@ -806,16 +812,18 @@ def render_portfolio_tab(
     sortino_ratio = compute_sortino_ratio(state_df, RISK_FREE_RATE)
 
     col_a, col_b, col_c, col_d, col_e, col_f, col_g, col_h = st.columns(8)
-    col_a.metric("Total Equity", f"${latest['total_equity']:,.2f}")
+    col_a.metric("Total Equity", f"{CURRENCY_SYMBOL}{latest['total_equity']:,.2f}")
     col_b.metric("Total Return %", f"{latest['total_return_pct']:,.2f}%")
-    col_c.metric("Margin Allocated", f"${margin_allocated:,.2f}")
-    col_d.metric("Available Balance", f"${latest['total_balance']:,.2f}")
+    col_c.metric("Margin Allocated", f"{CURRENCY_SYMBOL}{margin_allocated:,.2f}")
+    col_d.metric(
+        "Available Balance", f"{CURRENCY_SYMBOL}{latest['total_balance']:,.2f}"
+    )
     col_e.metric(
         "Unrealized PnL",
-        f"${unrealized_pnl:,.2f}",
-        # delta=f"${unrealized_pnl - prev_unrealized:.2f}",
+        f"{CURRENCY_SYMBOL}{unrealized_pnl:,.2f}",
+        # delta=f"{CURRENCY_SYMBOL}{unrealized_pnl - prev_unrealized:.2f}",
     )
-    col_f.metric("Realized PnL", f"${realized_pnl:,.2f}")
+    col_f.metric("Realized PnL", f"{CURRENCY_SYMBOL}{realized_pnl:,.2f}")
     col_g.metric(
         "Sharpe Ratio",
         f"{sharpe_ratio:,.2f}" if sharpe_ratio is not None else "N/A",
@@ -826,8 +834,10 @@ def render_portfolio_tab(
     )
 
     fee_col_a, fee_col_b = st.columns(2)
-    fee_col_a.metric("Fees Paid (lifetime)", f"${total_fees_paid:,.2f}")
-    fee_col_b.metric("Est. Exit Fees (open positions)", f"${exit_fee_estimate:,.2f}")
+    fee_col_a.metric("Fees Paid (lifetime)", f"{CURRENCY_SYMBOL}{total_fees_paid:,.2f}")
+    fee_col_b.metric(
+        "Est. Exit Fees (open positions)", f"{CURRENCY_SYMBOL}{exit_fee_estimate:,.2f}"
+    )
     st.caption(
         f"Fee calculations assume {TRADING_FEE_RATE * 100:.3f}% per side; adjust the TRADING_FEE_RATE env var if needed."
     )
@@ -928,7 +938,7 @@ def render_portfolio_tab(
             x=alt.X("timestamp:T", title="Time"),
             y=alt.Y(
                 "Value:Q",
-                title="Value ($)",
+                title=f"Value ({CURRENCY_SYMBOL})",
                 scale=alt.Scale(domain=[lower_bound, upper_bound]),
             ),
             color=alt.Color(
@@ -942,7 +952,9 @@ def render_portfolio_tab(
             tooltip=[
                 alt.Tooltip("timestamp:T", title="Timestamp"),
                 alt.Tooltip("Series:N", title="Series"),
-                alt.Tooltip("Value:Q", title="Value", format="$.2f"),
+                alt.Tooltip(
+                    "Value:Q", title=f"Value ({CURRENCY_SYMBOL})", format=",.2f"
+                ),
             ],
         )
         .properties(height=280)
@@ -969,15 +981,33 @@ def render_portfolio_tab(
             positions_df,
             column_config={
                 "quantity": st.column_config.NumberColumn(format="%.4f"),
-                "entry_price": st.column_config.NumberColumn(format="Rp%.2f"),
-                "current_price": st.column_config.NumberColumn(format="Rp%.2f"),
-                "profit_target": st.column_config.NumberColumn(format="Rp%.2f"),
-                "stop_loss": st.column_config.NumberColumn(format="Rp%.2f"),
-                "margin": st.column_config.NumberColumn(format="Rp%.2f"),
-                "risk_idr": st.column_config.NumberColumn(format="Rp%.2f"),
-                "fees_paid": st.column_config.NumberColumn(format="Rp%.2f"),
-                "unrealized_pnl": st.column_config.NumberColumn(format="Rp%.2f"),
-                "estimated_exit_fee": st.column_config.NumberColumn(format="Rp%.2f"),
+                "entry_price": st.column_config.NumberColumn(
+                    format=f"{CURRENCY_SYMBOL}%.2f"
+                ),
+                "current_price": st.column_config.NumberColumn(
+                    format=f"{CURRENCY_SYMBOL}%.2f"
+                ),
+                "profit_target": st.column_config.NumberColumn(
+                    format=f"{CURRENCY_SYMBOL}%.2f"
+                ),
+                "stop_loss": st.column_config.NumberColumn(
+                    format=f"{CURRENCY_SYMBOL}%.2f"
+                ),
+                "margin": st.column_config.NumberColumn(
+                    format=f"{CURRENCY_SYMBOL}%.2f"
+                ),
+                "risk_idr": st.column_config.NumberColumn(
+                    format=f"{CURRENCY_SYMBOL}%.2f"
+                ),
+                "fees_paid": st.column_config.NumberColumn(
+                    format=f"{CURRENCY_SYMBOL}%.2f"
+                ),
+                "unrealized_pnl": st.column_config.NumberColumn(
+                    format=f"{CURRENCY_SYMBOL}%.2f"
+                ),
+                "estimated_exit_fee": st.column_config.NumberColumn(
+                    format=f"{CURRENCY_SYMBOL}%.2f"
+                ),
             },
             use_container_width=True,
         )
@@ -1047,9 +1077,12 @@ def _merge_decisions_with_justifications(
             merged_frames.append(decisions_slice)
             continue
 
+        # Drop 'coin' column from justifications to avoid coin_x, coin_y duplicates
+        just_slice_for_merge = just_slice.drop(columns=["coin"], errors="ignore")
+
         merged = pd.merge_asof(
             decisions_slice,
-            just_slice,
+            just_slice_for_merge,
             on="timestamp",
             direction="backward",
             tolerance=pd.Timedelta("5min"),
@@ -1079,15 +1112,23 @@ def render_trades_tab(trades_df: pd.DataFrame) -> None:
         column_config={
             "timestamp": st.column_config.DatetimeColumn(format="YYYY-MM-DD HH:mm:ss"),
             "quantity": st.column_config.NumberColumn(format="%.4f"),
-            "price": st.column_config.NumberColumn(format="Rp%.2f"),
-            "profit_target": st.column_config.NumberColumn(format="Rp%.2f"),
-            "stop_loss": st.column_config.NumberColumn(format="Rp%.2f"),
-            "pnl": st.column_config.NumberColumn(format="Rp%.2f"),
-            "net_pnl": st.column_config.NumberColumn(format="Rp%.2f"),
-            "fee": st.column_config.NumberColumn(format="Rp%.2f"),
-            "balance_after": st.column_config.NumberColumn(format="Rp%.2f"),
-            "position_fee_total": st.column_config.NumberColumn(format="Rp%.2f"),
-            "position_net_pnl": st.column_config.NumberColumn(format="Rp%.2f"),
+            "price": st.column_config.NumberColumn(format=f"{CURRENCY_SYMBOL}%.2f"),
+            "profit_target": st.column_config.NumberColumn(
+                format=f"{CURRENCY_SYMBOL}%.2f"
+            ),
+            "stop_loss": st.column_config.NumberColumn(format=f"{CURRENCY_SYMBOL}%.2f"),
+            "pnl": st.column_config.NumberColumn(format=f"{CURRENCY_SYMBOL}%.2f"),
+            "net_pnl": st.column_config.NumberColumn(format=f"{CURRENCY_SYMBOL}%.2f"),
+            "fee": st.column_config.NumberColumn(format=f"{CURRENCY_SYMBOL}%.2f"),
+            "balance_after": st.column_config.NumberColumn(
+                format=f"{CURRENCY_SYMBOL}%.2f"
+            ),
+            "position_fee_total": st.column_config.NumberColumn(
+                format=f"{CURRENCY_SYMBOL}%.2f"
+            ),
+            "position_net_pnl": st.column_config.NumberColumn(
+                format=f"{CURRENCY_SYMBOL}%.2f"
+            ),
         },
         use_container_width=True,
         height=420,
