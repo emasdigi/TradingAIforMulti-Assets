@@ -232,7 +232,6 @@ elif config.ASSET_MODE.lower() == "idss":
     from . import data_processing_idss as data_processing
     from . import prompts_idss as prompts
 
-
 class TradingState:
     """Manages the full state of the trading bot."""
 
