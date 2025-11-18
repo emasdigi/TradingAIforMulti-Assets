@@ -20,5 +20,5 @@ slackAlert:
   infoChannel: quant-alert-dev
   attentionEmailList:
     - sungjin.oh@pluang.com
-    - hung.to@pluang.com
+    - to.vanhung@pluang.com
     - rui.zhao@pluang.com

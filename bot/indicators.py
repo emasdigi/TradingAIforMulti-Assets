@@ -72,4 +72,3 @@ def calculate_atr_series(df: pd.DataFrame, period: int) -> pd.Series:
     true_range = tr_components.max(axis=1)
     alpha = 1 / period
     return true_range.ewm(alpha=alpha, adjust=False).mean()
-

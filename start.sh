@@ -33,7 +33,6 @@ sleep 2
 
 # Start the Streamlit dashboard in the background
 echo "📊 Starting Dashboard..."
-cd front_end
 streamlit run dashboard.py \
     --server.port=8081 \
     --server.address=0.0.0.0 \
@@ -55,4 +54,3 @@ echo ""
 
 # Wait for both processes
 wait
-

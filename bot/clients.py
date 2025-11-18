@@ -29,7 +29,11 @@ def get_llm_client() -> Optional[OpenAI]:
     """Return an initialized OpenAI-compatible client singleton."""
     global _llm_client
 
-    _llm_client = OpenAI(api_key=config.OPENROUTER_API_KEY, base_url=config.OPENROUTER_BASE_URL)
+    _llm_client = OpenAI(
+        api_key=config.OPENROUTER_API_KEY,
+        base_url=config.OPENROUTER_BASE_URL,
+        max_retries=0,
+    )
     return _llm_client
 
 
