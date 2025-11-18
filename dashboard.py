@@ -581,7 +581,8 @@ def render_combined_equity_chart(
         return
 
     btc_caption = None
-    if btc_price_map:
+    # Only show BTC buy & hold benchmark for crypto asset mode
+    if ASSET_MODE == "crypto" and btc_price_map:
         longest_btc: pd.DataFrame | None = None
         for series in btc_price_map.values():
             if series is None or series.empty or "btc_price" not in series.columns:
@@ -834,9 +835,7 @@ def render_portfolio_tab(
     fee_col_b.metric(
         "Est. Exit Fees (open positions)", f"{CURRENCY_SYMBOL}{exit_fee_estimate:,.2f}"
     )
-    st.caption(
-        f"Fee calculations assume {TRADING_FEE_RATE * 100:.3f}% per side; adjust the TRADING_FEE_RATE env var if needed."
-    )
+    st.caption(f"Fee calculations assume {TRADING_FEE_RATE * 100:.3f}% per side")
 
     portfolio_summary = latest.get("portfolio_summary")
     short_summary_text = latest.get("short_summary")
@@ -863,7 +862,11 @@ def render_portfolio_tab(
                     unsafe_allow_html=True,
                 )
 
-    st.subheader("Equity Over Time (with BTC benchmark)")
+    # Show BTC benchmark note only for crypto mode
+    if ASSET_MODE == "crypto":
+        st.subheader("Equity Over Time (with BTC benchmark)")
+    else:
+        st.subheader("Equity Over Time")
     base_investment = STARTING_CAPITAL
 
     chart_frames = [
@@ -879,7 +882,13 @@ def render_portfolio_tab(
     ]
 
     btc_caption = None
-    if btc_series is not None and not btc_series.empty and len(state_df.index) > 0:
+    # Only show BTC buy & hold benchmark for crypto asset mode
+    if (
+        ASSET_MODE == "crypto"
+        and btc_series is not None
+        and not btc_series.empty
+        and len(state_df.index) > 0
+    ):
         timeline = state_df.reset_index()[["timestamp"]].copy()
         timeline["timestamp"] = pd.to_datetime(
             timeline["timestamp"], utc=True, errors="coerce"
@@ -927,6 +936,13 @@ def render_portfolio_tab(
     lower_bound = max(0.0, lower - padding)
     upper_bound = upper + padding
 
+    # Build color scale dynamically based on series present
+    color_domain = ["Portfolio equity"]
+    color_range = ["#f58518"]
+    if ASSET_MODE == "crypto":
+        color_domain.append("BTC buy & hold")
+        color_range.append("#4c78a8")
+
     equity_chart = (
         alt.Chart(equity_chart_df)
         .mark_line(interpolate="monotone")
@@ -941,8 +957,8 @@ def render_portfolio_tab(
                 "Series:N",
                 title="Series",
                 scale=alt.Scale(
-                    domain=["Portfolio equity", "BTC buy & hold"],
-                    range=["#f58518", "#4c78a8"],
+                    domain=color_domain,
+                    range=color_range,
                 ),
             ),
             tooltip=[
