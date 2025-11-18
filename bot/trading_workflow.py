@@ -513,7 +513,7 @@ def execute_trade(
         quantity = decision.get("quantity", 0.0)
         profit_target = decision.get("profit_target", 0.0)
         stop_loss = decision.get("stop_loss", 0.0)
-        risk_usd = decision.get("risk_usd", 0.0)
+        risk_idr = decision.get("risk_idr", 0.0)
         # Calculate position size based on risk
         stop_distance = abs(price - stop_loss)
         if stop_distance == 0:
@@ -539,7 +539,7 @@ def execute_trade(
             "leverage": leverage,
             "confidence": decision.get("confidence", 0.5),
             "margin": margin_required,
-            "risk_usd": risk_usd,
+            "risk_idr": risk_idr,
             "unrealized_pnl": 0.0,  # Initialize at 0 on entry
             "invalidation_condition": decision.get("invalidation_condition", ""),
             "justification": decision.get("justification", ""),
