@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
@@ -75,6 +76,49 @@ def _save_cache(cache: Dict[str, Any]) -> None:
     _ensure_cache_dir()
     with open(_NEWS_CACHE_FILE, "w", encoding="utf-8") as fh:
         json.dump(cache, fh, indent=2, ensure_ascii=False)
+    _upload_cache_to_s3(_NEWS_CACHE_FILE)
+
+
+def _project_s3_base_path() -> Optional[str]:
+    """Return the configured project S3 path (normalized)."""
+    project_path = str(getattr(config, "PROJECT_S3_PATH", "")).strip()
+    if not project_path:
+        return None
+
+    if not project_path.startswith("s3://"):
+        project_path = f"s3://{project_path}"
+
+    return project_path.rstrip("/")
+
+
+def _news_cache_s3_key() -> str:
+    """Build the destination key outside the model folder."""
+    env_name = getattr(config, "env", "") or os.environ.get("env", "")
+    env_suffix = f"_{env_name.strip()}" if env_name else ""
+    return f"news_cache{env_suffix}.json"
+
+
+def _upload_cache_to_s3(cache_path: Path) -> None:
+    """Upload the local news cache file to S3 (bucket root)."""
+    base_path = _project_s3_base_path()
+    if not base_path:
+        logger.warning("PROJECT_S3_PATH is not configured; skipping S3 upload")
+        return
+
+    s3_key = _news_cache_s3_key()
+    separator = "" if base_path.endswith("/") else "/"
+    s3_path = f"{base_path}{separator}{s3_key}"
+
+    try:
+        success = config.aws.upload_to_s3(str(cache_path), s3_path)
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.error("Failed to upload news cache to S3: %s", exc, exc_info=True)
+        return
+
+    if success:
+        logger.info("Uploaded news cache to S3 at %s", s3_path)
+    else:
+        logger.warning("S3 upload reported failure for %s", s3_path)
 
 
 def _build_default_queries() -> Dict[str, str]:
@@ -128,9 +172,7 @@ def refresh_news_cache(
     updated_cache: Dict[str, List[Dict[str, Any]]] = {}
     metadata = cache.get(_METADATA_KEY)
     previous_refresh_at = (
-        metadata.get(_METADATA_LAST_REFRESH)
-        if isinstance(metadata, dict)
-        else None
+        metadata.get(_METADATA_LAST_REFRESH) if isinstance(metadata, dict) else None
     )
 
     for coin, query in queries.items():
@@ -214,10 +256,16 @@ def get_cached_news(
 
 def get_cached_titles(coin: str, limit: int = 3) -> List[str]:
     """Convenience helper returning only the news headlines."""
-    return [entry.get("title", "") for entry in get_cached_news(coin, limit=limit) if entry.get("title")]
+    return [
+        entry.get("title", "")
+        for entry in get_cached_news(coin, limit=limit)
+        if entry.get("title")
+    ]
 
 
-def iter_cached_news(limit_per_asset: int = 3) -> Iterable[tuple[str, List[Dict[str, Any]]]]:
+def iter_cached_news(
+    limit_per_asset: int = 3,
+) -> Iterable[tuple[str, List[Dict[str, Any]]]]:
     """Yield ``(coin, news_list)`` pairs from the cache for all configured assets."""
     cache = _load_cache()
     for symbol in config.SYMBOLS:

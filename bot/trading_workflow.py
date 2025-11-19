@@ -232,6 +232,7 @@ elif config.ASSET_MODE.lower() == "idss":
     from . import data_processing_idss as data_processing
     from . import prompts_idss as prompts
 
+
 class TradingState:
     """Manages the full state of the trading bot."""
 
@@ -257,18 +258,27 @@ class TradingState:
         """Load persisted balance and positions if available."""
         data: Dict[str, Any] = {}
 
-        # Try to download from S3 first
+        # Try to download from S3 first - prioritize S3 over local files
+        # Download to the specific model directory
+        s3_model_path = str(config.PROJECT_S3_PATH) + self.model_name + "/"
+        local_model_dir = str(config.DATA_DIR) + "/" + self.model_name
+
         download_success = config.aws.download_directory_from_s3(
-            s3_base_path=config.PROJECT_S3_PATH, local_directory=config.DATA_DIR
+            s3_base_path=s3_model_path, local_directory=local_model_dir
         )
 
         if download_success["success"] > 0:
             logging.info(
-                "Successfully downloaded state from S3: %s", config.PROJECT_S3_PATH
+                "Successfully downloaded %d files from S3: %s",
+                download_success["success"],
+                s3_model_path,
             )
         else:
-            logging.info("Could not download from S3, will check for local state file")
+            logging.info(
+                "No files downloaded from S3, will use local state file if it exists"
+            )
 
+        # Load the state file (now prioritizing S3-downloaded version)
         if self._state_file.exists():
             try:
                 with open(self._state_file, "r") as f:
@@ -483,14 +493,18 @@ class TradingState:
                 json.dump(payload, f, indent=2)
 
             # Upload to S3
+            s3_model_path = str(config.PROJECT_S3_PATH) + self.model_name + "/"
+            local_model_dir = str(config.DATA_DIR) + "/" + self.model_name
+
             upload_success = config.aws.upload_directory_to_s3(
-                local_directory=str(config.DATA_DIR) + "/" + self.model_name,
-                s3_base_path=str(config.PROJECT_S3_PATH) + self.model_name,
+                local_directory=local_model_dir,
+                s3_base_path=s3_model_path,
             )
             if upload_success["success"] > 0:
                 logging.info(
-                    "State saved locally and uploaded to S3: %s",
-                    str(config.PROJECT_S3_PATH) + self.model_name,
+                    "State saved locally and uploaded %d files to S3: %s",
+                    upload_success["success"],
+                    s3_model_path,
                 )
             else:
                 logging.warning("State saved locally but S3 upload failed")
