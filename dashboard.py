@@ -1077,6 +1077,23 @@ def _merge_decisions_with_justifications(
     if decisions_df.empty or justifications_df.empty:
         return decisions_df
 
+    # Ensure timestamp columns are datetime type for both dataframes
+    decisions_df = decisions_df.copy()
+    justifications_df = justifications_df.copy()
+    
+    if "timestamp" not in decisions_df.columns or "timestamp" not in justifications_df.columns:
+        return decisions_df
+    
+    decisions_df["timestamp"] = pd.to_datetime(decisions_df["timestamp"], errors="coerce")
+    justifications_df["timestamp"] = pd.to_datetime(justifications_df["timestamp"], errors="coerce")
+    
+    # Drop rows with invalid timestamps
+    decisions_df = decisions_df.dropna(subset=["timestamp"])
+    justifications_df = justifications_df.dropna(subset=["timestamp"])
+    
+    if decisions_df.empty or justifications_df.empty:
+        return decisions_df
+
     merged_frames: List[pd.DataFrame] = []
     for coin in sorted(decisions_df["coin"].dropna().unique()):
         decisions_slice = decisions_df[decisions_df["coin"] == coin].sort_values(
