@@ -21,37 +21,37 @@ cleanup() {
 # Set trap to cleanup on exit
 trap cleanup EXIT INT TERM
 
-# Start the trading bot in the background
-echo "📈 Starting Trading Bot..."
-python -u main.py &
-BOT_PID=$!
-echo "✅ Trading Bot started (PID: $BOT_PID)"
-echo ""
+# # Start the trading bot in the background
+# echo "📈 Starting Trading Bot..."
+# python -u main.py &
+# BOT_PID=$!
+# echo "✅ Trading Bot started (PID: $BOT_PID)"
+# echo ""
 
-# Wait a moment for bot to initialize
-sleep 2
+# # Wait a moment for bot to initialize
+# sleep 2
 
-# Start the news cache updater in the background
-echo "🔄 Starting News Cache Updater (hourly)..."
-(
-    while true; do
-        loop_start=$(date +%s)
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Running bot/news_cache.py..."
-        python -u bot/news_cache.py || echo "⚠️  bot/news_cache.py failed, will retry in 1 hour"
-        loop_end=$(date +%s)
-        runtime=$((loop_end - loop_start))
-        sleep_duration=$((3600 - runtime))
-        if [ $sleep_duration -gt 0 ]; then
-            echo "[$(date '+%Y-%m-%d %H:%M:%S')] bot/news_cache.py completed. Waiting $sleep_duration seconds (~$((sleep_duration / 60)) minutes) before next run..."
-            sleep $sleep_duration
-        else
-            echo "[$(date '+%Y-%m-%d %H:%M:%S')] bot/news_cache.py took longer than 1 hour; starting next run immediately..."
-        fi
-    done
-) &
-CACHE_PID=$!
-echo "✅ News Cache Updater started (PID: $CACHE_PID)"
-echo ""
+# # Start the news cache updater in the background
+# echo "🔄 Starting News Cache Updater (hourly)..."
+# (
+#     while true; do
+#         loop_start=$(date +%s)
+#         echo "[$(date '+%Y-%m-%d %H:%M:%S')] Running bot/news_cache.py..."
+#         python -u bot/news_cache.py || echo "⚠️  bot/news_cache.py failed, will retry in 1 hour"
+#         loop_end=$(date +%s)
+#         runtime=$((loop_end - loop_start))
+#         sleep_duration=$((3600 - runtime))
+#         if [ $sleep_duration -gt 0 ]; then
+#             echo "[$(date '+%Y-%m-%d %H:%M:%S')] bot/news_cache.py completed. Waiting $sleep_duration seconds (~$((sleep_duration / 60)) minutes) before next run..."
+#             sleep $sleep_duration
+#         else
+#             echo "[$(date '+%Y-%m-%d %H:%M:%S')] bot/news_cache.py took longer than 1 hour; starting next run immediately..."
+#         fi
+#     done
+# ) &
+# CACHE_PID=$!
+# echo "✅ News Cache Updater started (PID: $CACHE_PID)"
+# echo ""
 
 # Start the Streamlit dashboard in the background
 echo "📊 Starting Dashboard..."
