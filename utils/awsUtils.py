@@ -335,13 +335,12 @@ class AWS:
             bucket_name = parts[0]
             prefix = parts[1] if len(parts) > 1 else ""
 
+            # Parent data path
+            local_dir_path = Path(local_directory)
+
             # Ensure prefix ends with '/' if it exists
             if prefix and not prefix.endswith("/"):
                 prefix += "/"
-
-            # Create local directory if it doesn't exist
-            local_dir_path = Path(local_directory)
-            local_dir_path.mkdir(parents=True, exist_ok=True)
 
             # List objects in S3
             response = self.awsClient.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
@@ -364,9 +363,14 @@ class AWS:
                 if s3_key.endswith("/"):
                     continue
 
-                # Get filename from key
-                filename = s3_key.split("/")[-1]
+                # # Create model path
+                # model_path = s3_key[:s3_key.rfind('/')]
+                # model_dir_path = local_dir_path / Path(model_path)
+                # model_dir_path.mkdir(parents=True, exist_ok=True)
 
+                # Get filename from key
+                filename = s3_key
+                
                 # Check if filename matches pattern
                 if not fnmatch.fnmatch(filename, pattern):
                     continue
@@ -375,8 +379,8 @@ class AWS:
                 local_file_path = local_dir_path / filename
 
                 # Construct full S3 path for download
-                s3_file_path = f"s3://{bucket_name}/{s3_key}"
-
+                s3_file_path = f"s3://{bucket_name}/{s3_key}"                
+                
                 # Download file
                 success = self.download_from_s3(s3_file_path, str(local_file_path))
 
