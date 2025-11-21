@@ -12,17 +12,17 @@ from .indicators import *
 
 class IDSStockMongoClient:
     """MongoDB client for fetching Indonesian stock (IDSS) OHLC data."""
-    
-    MONGO_DB_NAME="pluang_indo_stock_static_data_v2"
+
+    MONGO_DB_NAME = "pluang_indo_stock_static_data_v2"
     COLLECTION_HOURLY_OHLC_NAME = "indo_stock_one_hour_ohlc_price_stats"
     COLLECTION_MINS_OHLC_NAME = "indo_stock_five_minutes_ohlc_price_stats"
 
     def __init__(self):
         uri = f"mongodb+srv://{config.MONGO_DB_USERNAME}:{config.MONGO_DB_PASSWORD}@{config.MONGO_DB_HOST}/?appName={config.MONGO_APP_NAME}"
         # Create a new client and connect to the server
-        client = MongoClient(uri, server_api=ServerApi('1'))
+        client = MongoClient(uri, server_api=ServerApi("1"))
         try:
-            client.admin.command('ping')
+            client.admin.command("ping")
             logging.info("Successfully connected to MongoDB for IDSS data!")
         except Exception as e:
             logging.error(f"Failed to connect to MongoDB: {e}")
@@ -32,13 +32,24 @@ class IDSStockMongoClient:
     def fetch_hourly_ohlc(self, symbol: str, limit: int = 200) -> List[Dict[str, Any]]:
         """Fetch hourly OHLC data for a symbol."""
         collection_hourly_ohlc = self.db[self.COLLECTION_HOURLY_OHLC_NAME]
-        data = collection_hourly_ohlc.find({"sc": symbol}).sort("psd", DESCENDING).limit(limit)
+        data = (
+            collection_hourly_ohlc.find({"sc": symbol})
+            .sort("psd", DESCENDING)
+            .limit(limit)
+        )
         return list(data)
 
     def fetch_mins_ohlc(self, symbol: str, limit: int = 100) -> List[Dict[str, Any]]:
         """Fetch 5-minute OHLC data for a symbol."""
+        if self.db is None:
+            logging.error("MongoDB not connected. Cannot fetch 5-minute OHLC data.")
+            return []
         collection_mins_ohlc = self.db[self.COLLECTION_MINS_OHLC_NAME]
-        data = collection_mins_ohlc.find({"sc": symbol}).sort("psd", DESCENDING).limit(limit)
+        data = (
+            collection_mins_ohlc.find({"sc": symbol})
+            .sort("psd", DESCENDING)
+            .limit(limit)
+        )
         return list(data)
 
 
@@ -49,7 +60,7 @@ mongo_client = IDSStockMongoClient()
 def mongo_data_to_dataframe(mongo_data: List[Dict[str, Any]]) -> pd.DataFrame:
     """
     Convert MongoDB OHLC data to a pandas DataFrame.
-    
+
     Expected MongoDB fields:
     - sc: symbol code
     - psd: period start date (timestamp)
@@ -61,13 +72,13 @@ def mongo_data_to_dataframe(mongo_data: List[Dict[str, Any]]) -> pd.DataFrame:
     """
     if not mongo_data:
         return pd.DataFrame()
-    
+
     # Convert to DataFrame and rename columns
     df = pd.DataFrame(mongo_data)
-    
+
     # Reverse the order (oldest first) for proper indicator calculation
     df = df.iloc[::-1].reset_index(drop=True)
-    
+
     # Rename columns to standard format
     column_mapping = {
         "op": "open",
@@ -75,26 +86,26 @@ def mongo_data_to_dataframe(mongo_data: List[Dict[str, Any]]) -> pd.DataFrame:
         "lop": "low",
         "clp": "close",
         "vol": "volume",
-        "cst": "timestamp"
+        "cst": "timestamp",
     }
-    
+
     df = df.rename(columns=column_mapping)
-    
+
     # Ensure numeric columns are float
     numeric_cols = ["open", "high", "low", "close", "volume"]
     for col in numeric_cols:
         if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
-    
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
     # Calculate mid_price
     df["mid_price"] = (df["high"] + df["low"]) / 2
-    
+
     # Calculate VWAP (Volume Weighted Average Price)
     if "volume" in df.columns and df["volume"].sum() > 0:
         df["vwap"] = (df["close"] * df["volume"]).cumsum() / df["volume"].cumsum()
     else:
         df["vwap"] = df["close"]
-    
+
     return df
 
 
@@ -102,10 +113,10 @@ def collect_market_data(symbol: str) -> Optional[Dict[str, Any]]:
     """
     Collect and process market data for Indonesian stocks (IDSS).
     Returns a market snapshot compatible with the trading workflow.
-    
+
     Args:
         symbol: The stock symbol (e.g., "BBCA", "GOTO")
-        
+
     Returns:
         Dictionary with market data and indicators, or None if data fetch fails
     """
@@ -115,9 +126,9 @@ def collect_market_data(symbol: str) -> Optional[Dict[str, Any]]:
         if not mins_data:
             logging.warning(f"No 5-minute data found for {symbol}")
             return None
-         
+
         df_intraday = mongo_data_to_dataframe(mins_data)
-        
+
         # Add indicators for intraday data
         df_intraday = add_indicator_columns(
             df_intraday,
@@ -125,15 +136,15 @@ def collect_market_data(symbol: str) -> Optional[Dict[str, Any]]:
             rsi_periods=(7, config.RSI_LEN),
             macd_params=(config.MACD_FAST, config.MACD_SLOW, config.MACD_SIGNAL),
         )
-        
+
         # Fetch hourly data for long-term analysis (last 200 candles = ~8.3 days)
         hourly_data = mongo_client.fetch_hourly_ohlc(symbol, limit=200)
         if not hourly_data:
             logging.warning(f"No hourly data found for {symbol}")
             return None
-        
+
         df_long = mongo_data_to_dataframe(hourly_data)
-        
+
         # Add indicators for long-term data
         df_long = add_indicator_columns(
             df_long,
@@ -141,15 +152,15 @@ def collect_market_data(symbol: str) -> Optional[Dict[str, Any]]:
             rsi_periods=(14,),
             macd_params=(config.MACD_FAST, config.MACD_SLOW, config.MACD_SIGNAL),
         )
-        
+
         # Calculate ATR
         df_long["atr3"] = calculate_atr_series(df_long, 3)
         df_long["atr14"] = calculate_atr_series(df_long, 14)
-        
+
         # Get tail data for series
         intraday_tail = df_intraday.tail(10)
         long_tail = df_long.tail(10)
-        
+
         # Build the market snapshot in the same format as data_processing_stock
         return {
             "symbol": symbol,
@@ -182,7 +193,9 @@ def collect_market_data(symbol: str) -> Optional[Dict[str, Any]]:
             },
         }
     except Exception as exc:
-        logging.error(f"Failed to build market snapshot for {symbol}: {exc}", exc_info=True)
+        logging.error(
+            f"Failed to build market snapshot for {symbol}: {exc}", exc_info=True
+        )
         return None
 
 
