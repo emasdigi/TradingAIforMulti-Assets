@@ -261,7 +261,7 @@ class TradingState:
         download_success = config.aws.download_directory_from_s3(
             s3_base_path=config.PROJECT_S3_PATH, local_directory=config.DATA_DIR
         )
-
+       
         if download_success["success"] > 0:
             logging.info(
                 "Successfully downloaded state from S3: %s", config.PROJECT_S3_PATH
@@ -280,6 +280,9 @@ class TradingState:
                     e,
                     exc_info=True,
                 )
+        else:
+            logging.error(f"{self.model_name} Model file is not exiting in s3..")
+            exit(1)
 
         if data:
             balance_candidate = data.get("last_total_balance", data.get("balance"))
@@ -1230,7 +1233,7 @@ def is_market_open() -> bool:
 def run_trading_loop(model_name: str):
     """The main event loop for the trading bot."""
     utils.setup_logging()
-    utils.init_csv_files(model_name=model_name)
+    # utils.init_csv_files(model_name=model_name)
 
     state = TradingState(model_name)
     state.load_state()
@@ -1285,9 +1288,9 @@ def run_trading_loop(model_name: str):
                     wib_tz = ZoneInfo("Asia/Jakarta")
                     current_time = datetime.now(wib_tz).strftime("%H:%M:%S %Z")
                     logging.info(
-                        f"IDX market is on break (current time: {current_time}). Sleeping for 1 minute..."
+                        f"IDX market is on break (current time: {current_time}). Sleeping for 3 minute..."
                     )
-                    time.sleep(60)  # Sleep for 1 minute
+                    time.sleep(60 * 3)  # Sleep for 3 minute
                     continue  # Skip this iteration and retry
 
                 # Check if market is closed for the day
@@ -1300,9 +1303,9 @@ def run_trading_loop(model_name: str):
                     state.save_state()
                     state.invocation_count = 0  # Reset iteration count
                     logging.info(
-                        "Sleeping for 1 minute before checking market status again..."
+                        "Sleeping for 5 minute before checking market status again..."
                     )
-                    time.sleep(60)  # Sleep for 1 minute
+                    time.sleep(60 * 5)  # Sleep for 5 minute
                     continue  # Skip this iteration and retry
 
             state.invocation_count += 1
