@@ -33,13 +33,13 @@ LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "gpt-4o")
 
 # Two LLM Models for Focused Testing (Claude Sonnet and Gemini Pro)
 LLM_MODELS = {
-    # "deepseek_v3.1": {
-    #     "model_id": "deepseek/deepseek-chat-v3.1",
-    #     "name": "DeepSeek V3.1",
-    #     "provider": "DeepSeek",
-    #     "max_tokens": 10000,
-    #     "temperature": 0.7,
-    # },
+    "deepseek_v3.1": {
+        "model_id": "deepseek/deepseek-chat-v3.1",
+        "name": "DeepSeek V3.1",
+        "provider": "DeepSeek",
+        "max_tokens": 10000,
+        "temperature": 0.7,
+    },
     "qwen3_max": {
         "model_id": "qwen/qwen3-max",
         "name": "Qwen3 Max",
@@ -47,30 +47,30 @@ LLM_MODELS = {
         "max_tokens": 10000,
         "temperature": 0.7,
     },
-    # "gemini_pro": {
-    #     "model_id": "google/gemini-2.5-pro",
-    #     "name": "Gemini 2.5 Pro",
-    #     "provider": "Google",
-    #     "max_tokens": 10000,
-    #     "temperature": 0.7,
-    # },
-    # "grok4": {
-    #     "model_id": "x-ai/grok-4",
-    #     "name": "Grok 4",
-    #     "provider": "Grok",
-    #     "max_tokens": 10000,
-    #     "temperature": 0.7,
-    #     "reasoning": {"effort": "low"},
-    # },
-    # "gpt5": {
-    #     "model_id": "openai/gpt-5",
-    #     "name": "GPT-5",
-    #     "provider": "OpenAI",
-    #     "max_tokens": 10000,
-    #     "temperature": 1,
-    #     "reasoning": {"enabled": False},
-    #     "response_format": {"type": "json_object"},
-    # },
+    "gemini_pro": {
+        "model_id": "google/gemini-2.5-pro",
+        "name": "Gemini 2.5 Pro",
+        "provider": "Google",
+        "max_tokens": 10000,
+        "temperature": 0.7,
+    },
+    "grok4": {
+        "model_id": "x-ai/grok-4",
+        "name": "Grok 4",
+        "provider": "Grok",
+        "max_tokens": 10000,
+        "temperature": 0.7,
+        "reasoning": {"effort": "low"},
+    },
+    "gpt5": {
+        "model_id": "openai/gpt-5",
+        "name": "GPT-5",
+        "provider": "OpenAI",
+        "max_tokens": 10000,
+        "temperature": 1,
+        "reasoning": {"enabled": False},
+        "response_format": {"type": "json_object"},
+    },
     "claude_sonnet_4.5": {
         "model_id": "anthropic/claude-sonnet-4.5",
         "name": "Claude Sonnet 4.5",
@@ -78,20 +78,20 @@ LLM_MODELS = {
         "max_tokens": 10000,
         "temperature": 0.7,
     },
-    # "kimi_k2": {
-    #     "model_id": "moonshotai/kimi-k2-thinking",
-    #     "name": "Kimik2",
-    #     "provider": "MoonshotAI",
-    #     "max_tokens": 10000,
-    #     "temperature": 0.7,
-    # },
-    # "sherlock_alpha": {
-    #     "model_id": "openrouter/sherlock-think-alpha",
-    #     "name": "Sherlock Think",
-    #     "provider": "OpenRouter",
-    #     "max_tokens": 10000,
-    #     "temperature": 0.7,
-    # },
+    "kimi_k2": {
+        "model_id": "moonshotai/kimi-k2-thinking",
+        "name": "Kimik2",
+        "provider": "MoonshotAI",
+        "max_tokens": 10000,
+        "temperature": 0.7,
+    },
+    "sherlock_alpha": {
+        "model_id": "openrouter/sherlock-think-alpha",
+        "name": "Sherlock Think",
+        "provider": "OpenRouter",
+        "max_tokens": 10000,
+        "temperature": 0.7,
+    },
 }
 # --- TELEGRAM NOTIFICATIONS ---
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
