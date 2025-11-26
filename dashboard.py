@@ -37,6 +37,8 @@ DEFAULT_RISK_FREE_RATE = 0.05
 DEFAULT_SNAPSHOT_SECONDS = 300.0
 DEFAULT_START_CAPITAL = 10_000.0
 DEFAULT_TRADING_FEE_RATE = 0.0003
+DOWNTIME_THRESHOLD_SECONDS = 3600  # seconds
+MARKET_MODES_WITH_DOWNTIME = {"idss", "us_stock"}
 
 COIN_TO_SYMBOL: Dict[str, str] = {
     "ETH": "ETHUSDT",
@@ -470,6 +472,48 @@ def estimate_period_seconds(
     return float(period_seconds)
 
 
+def compress_market_downtime(
+    frame: pd.DataFrame,
+    *,
+    timestamp_col: str = "timestamp",
+    group_col: str | None = None,
+    plot_col: str = "plot_timestamp",
+    downtime_threshold_seconds: float = DOWNTIME_THRESHOLD_SECONDS,
+) -> pd.DataFrame:
+    """Remove extended market closures by compressing long gaps (> threshold) in time."""
+
+    if frame is None or frame.empty or timestamp_col not in frame.columns:
+        return frame
+
+    def _compress_single(df_slice: pd.DataFrame) -> pd.DataFrame:
+        working = df_slice.copy()
+        working[timestamp_col] = pd.to_datetime(
+            working[timestamp_col], utc=True, errors="coerce"
+        )
+        working = working.dropna(subset=[timestamp_col])
+        if working.empty:
+            return working
+
+        working.sort_values(timestamp_col, inplace=True)
+        diffs = working[timestamp_col].diff().dt.total_seconds().fillna(0.0)
+        extra_gap = np.clip(diffs - downtime_threshold_seconds, a_min=0.0, a_max=None)
+        cumulative_shift = extra_gap.cumsum()
+        working[plot_col] = working[timestamp_col] - pd.to_timedelta(
+            cumulative_shift, unit="s"
+        )
+        return working
+
+    if group_col and group_col in frame.columns:
+        pieces: List[pd.DataFrame] = []
+        for _, slice_df in frame.groupby(group_col, sort=False):
+            compressed = _compress_single(slice_df)
+            if not compressed.empty:
+                pieces.append(compressed)
+        return pd.concat(pieces, ignore_index=True) if pieces else frame
+
+    return _compress_single(frame)
+
+
 MIN_RETURNS_FOR_SHARPE = int(60 / (DEFAULT_SNAPSHOT_SECONDS / 60))
 
 
@@ -636,7 +680,12 @@ def render_combined_equity_chart(
     combined_df = pd.concat(frames, ignore_index=True).dropna(
         subset=["timestamp", "Value"]
     )
-    combined_df.sort_values("timestamp", inplace=True)
+    plot_time_field = "timestamp"
+    if ASSET_MODE in MARKET_MODES_WITH_DOWNTIME:
+        combined_df = compress_market_downtime(combined_df, group_col="Series")
+        if "plot_timestamp" in combined_df.columns:
+            plot_time_field = "plot_timestamp"
+    combined_df.sort_values(plot_time_field, inplace=True)
 
     lower = float(combined_df["Value"].min())
     upper = float(combined_df["Value"].max())
@@ -657,7 +706,10 @@ def render_combined_equity_chart(
         alt.Chart(combined_df)
         .mark_line(interpolate="monotone")
         .encode(
-            x=alt.X("timestamp:T", title="Time"),
+            x=alt.X(
+                f"{plot_time_field}:T",
+                title="Time" if plot_time_field == "timestamp" else "Market time",
+            ),
             y=alt.Y(
                 "Value:Q",
                 title=f"Portfolio Equity ({CURRENCY_SYMBOL})",
@@ -665,7 +717,7 @@ def render_combined_equity_chart(
             ),
             color=alt.Color("Series:N", title="Series", scale=series_scale),
             tooltip=[
-                alt.Tooltip("timestamp:T", title="Timestamp"),
+                alt.Tooltip("timestamp:T", title="Actual timestamp"),
                 alt.Tooltip("Series:N", title="Series"),
                 alt.Tooltip(
                     "Value:Q", title=f"Equity ({CURRENCY_SYMBOL})", format=",.2f"
@@ -925,7 +977,12 @@ def render_portfolio_tab(
                     )
 
     equity_chart_df = pd.concat(chart_frames).dropna(subset=["timestamp", "Value"])
-    equity_chart_df.sort_values("timestamp", inplace=True)
+    plot_time_field = "timestamp"
+    if ASSET_MODE in MARKET_MODES_WITH_DOWNTIME:
+        equity_chart_df = compress_market_downtime(equity_chart_df, group_col="Series")
+        if "plot_timestamp" in equity_chart_df.columns:
+            plot_time_field = "plot_timestamp"
+    equity_chart_df.sort_values(plot_time_field, inplace=True)
 
     lower = float(equity_chart_df["Value"].min())
     upper = float(equity_chart_df["Value"].max())
@@ -947,7 +1004,10 @@ def render_portfolio_tab(
         alt.Chart(equity_chart_df)
         .mark_line(interpolate="monotone")
         .encode(
-            x=alt.X("timestamp:T", title="Time"),
+            x=alt.X(
+                f"{plot_time_field}:T",
+                title="Time" if plot_time_field == "timestamp" else "Market time",
+            ),
             y=alt.Y(
                 "Value:Q",
                 title=f"Value ({CURRENCY_SYMBOL})",
@@ -962,7 +1022,7 @@ def render_portfolio_tab(
                 ),
             ),
             tooltip=[
-                alt.Tooltip("timestamp:T", title="Timestamp"),
+                alt.Tooltip("timestamp:T", title="Actual timestamp"),
                 alt.Tooltip("Series:N", title="Series"),
                 alt.Tooltip(
                     "Value:Q", title=f"Value ({CURRENCY_SYMBOL})", format=",.2f"
@@ -1080,17 +1140,24 @@ def _merge_decisions_with_justifications(
     # Ensure timestamp columns are datetime type for both dataframes
     decisions_df = decisions_df.copy()
     justifications_df = justifications_df.copy()
-    
-    if "timestamp" not in decisions_df.columns or "timestamp" not in justifications_df.columns:
+
+    if (
+        "timestamp" not in decisions_df.columns
+        or "timestamp" not in justifications_df.columns
+    ):
         return decisions_df
-    
-    decisions_df["timestamp"] = pd.to_datetime(decisions_df["timestamp"], errors="coerce")
-    justifications_df["timestamp"] = pd.to_datetime(justifications_df["timestamp"], errors="coerce")
-    
+
+    decisions_df["timestamp"] = pd.to_datetime(
+        decisions_df["timestamp"], errors="coerce"
+    )
+    justifications_df["timestamp"] = pd.to_datetime(
+        justifications_df["timestamp"], errors="coerce"
+    )
+
     # Drop rows with invalid timestamps
     decisions_df = decisions_df.dropna(subset=["timestamp"])
     justifications_df = justifications_df.dropna(subset=["timestamp"])
-    
+
     if decisions_df.empty or justifications_df.empty:
         return decisions_df
 
