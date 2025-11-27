@@ -31,6 +31,22 @@ LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "")
 LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "gpt-4o")
 
+# --- TELEGRAM NOTIFICATIONS ---
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+
+globalConfigFilePath = "config/config.global.yaml"
+globalCONFIG = yaml_parser(globalConfigFilePath)
+filePathEnv = globalCONFIG["filePathEnv"]
+if os.path.isfile(filePathEnv):
+    env = json_parser(filePathEnv)["env"]
+else:
+    env = os.environ.get("env", globalCONFIG["VM_env"])
+
+
+envConfigFilePath = f"config/config.{env}.yaml"
+envCONFIG = yaml_parser(envConfigFilePath)
+
 # Two LLM Models for Focused Testing (Claude Sonnet and Gemini Pro)
 LLM_MODELS = {
     # "deepseek_v3.1": {
@@ -93,21 +109,24 @@ LLM_MODELS = {
     #     "temperature": 0.7,
     # },
 }
-# --- TELEGRAM NOTIFICATIONS ---
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
-globalConfigFilePath = "config/config.global.yaml"
-globalCONFIG = yaml_parser(globalConfigFilePath)
-filePathEnv = globalCONFIG["filePathEnv"]
-if os.path.isfile(filePathEnv):
-    env = json_parser(filePathEnv)["env"]
-else:
-    env = os.environ.get("env", globalCONFIG["VM_env"])
-
-
-envConfigFilePath = f"config/config.{env}.yaml"
-envCONFIG = yaml_parser(envConfigFilePath)
+if env != "production":
+    LLM_MODELS = {
+        "qwen3_max": {
+            "model_id": "qwen/qwen3-max",
+            "name": "Qwen3 Max",
+            "provider": "Qwen",
+            "max_tokens": 10000,
+            "temperature": 0.7,
+        },
+        "claude_sonnet_4.5": {
+            "model_id": "anthropic/claude-sonnet-4.5",
+            "name": "Claude Sonnet 4.5",
+            "provider": "Anthropic",
+            "max_tokens": 10000,
+            "temperature": 0.7,
+        },
+    }
 
 # AWS Utils
 from utils.awsUtils import AWS
