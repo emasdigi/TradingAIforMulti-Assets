@@ -4,7 +4,8 @@ Prompt generation for the LLM.
 """
 import json
 from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional
+from statistics import fmean
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -449,6 +450,70 @@ def create_trading_prompt(
         years = days // 365
         return f"{years} year{'s' if years != 1 else ''} ago"
 
+    def summarize_news_sentiment(
+        entries: List[Dict[str, Any]]
+    ) -> Optional[Tuple[str, str]]:
+        """Return (summary_line, key_headline) describing sentiment balance."""
+
+        if not entries:
+            return None
+
+        sentiment_weights = {"positive": 1.0, "negative": -1.0, "neutral": 0.0}
+        counts = {"positive": 0, "negative": 0, "neutral": 0, "unknown": 0}
+        weighted_scores = []
+        key_entry: Optional[Dict[str, Any]] = None
+
+        for entry in entries:
+            sent = (entry.get("sentiment") or "unknown").lower()
+            if sent not in sentiment_weights:
+                counts["unknown"] += 1
+            else:
+                counts[sent] += 1
+                confidence = entry.get("sentiment_confidence")
+                if isinstance(confidence, (int, float)):
+                    weighted_scores.append(sentiment_weights[sent] * confidence)
+                else:
+                    weighted_scores.append(sentiment_weights[sent])
+
+            # Prefer the most recent headline with a summary.
+            if not key_entry:
+                key_entry = entry
+            else:
+                ts_new = entry.get("published_at") or entry.get("date") or ""
+                ts_old = key_entry.get("published_at") or key_entry.get("date") or ""
+                if ts_new and ts_new > ts_old:
+                    key_entry = entry
+
+        net_score = fmean(weighted_scores) if weighted_scores else 0.0
+        if net_score >= 0.2:
+            bias = "Bullish tilt"
+        elif net_score <= -0.2:
+            bias = "Bearish tilt"
+        else:
+            bias = "Mixed/neutral bias"
+
+        summary_line = (
+            f"{bias}: +{counts['positive']} / -{counts['negative']} / "
+            f"={counts['neutral']} (net score {net_score:+.2f})."
+        )
+
+        if key_entry:
+            key_summary = (
+                key_entry.get("summary")
+                or key_entry.get("snippet")
+                or key_entry.get("title", "")
+            )
+            key_summary = key_summary.replace("\n", " ").strip()
+            key_sentiment = (key_entry.get("sentiment") or "unknown").upper()
+            freshness = describe_freshness(key_entry)
+            key_line = f"Key headline [{key_sentiment}] {key_summary}"
+            if freshness:
+                key_line += f" (published {freshness})"
+        else:
+            key_line = ""
+
+        return summary_line, key_line
+
     for symbol in config.SYMBOLS:
         coin = config.SYMBOL_TO_COIN[symbol]
         data = market_snapshots.get(coin)
@@ -480,10 +545,16 @@ def create_trading_prompt(
             ]
         )
 
-        news_entries = news_cache.get_cached_news(coin, limit=3)
+        news_entries = news_cache.get_cached_news(coin, limit=5)
 
         if news_entries:
+            sentiment_summary = summarize_news_sentiment(news_entries)
             prompt_lines.append("  Recent news sentiment:")
+            if sentiment_summary:
+                summary_line, key_line = sentiment_summary
+                prompt_lines.append(f"    - {summary_line}")
+                if key_line:
+                    prompt_lines.append(f"    - {key_line}")
             for entry in news_entries:
                 summary = (
                     entry.get("summary")
