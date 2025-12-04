@@ -39,6 +39,10 @@ logger = logging.getLogger(__name__)
 _NEWS_CACHE_FILE: Path = config.DATA_DIR / "news_cache.json"
 _METADATA_KEY = "_metadata"
 _METADATA_LAST_REFRESH = "last_refresh_at"
+try:
+    _NEWS_CACHE_S3_PATH = f"{str(config.PROJECT_S3_PATH).rstrip('/')}/news_cache.json"
+except AttributeError:  # pragma: no cover - defensive fallback
+    _NEWS_CACHE_S3_PATH = ""
 
 
 def _now_utc() -> datetime:
@@ -75,6 +79,31 @@ def _save_cache(cache: Dict[str, Any]) -> None:
     _ensure_cache_dir()
     with open(_NEWS_CACHE_FILE, "w", encoding="utf-8") as fh:
         json.dump(cache, fh, indent=2, ensure_ascii=False)
+    upload_result = _upload_cache_to_s3(_NEWS_CACHE_FILE)
+    if upload_result:
+        logger.info("Uploaded news cache to S3: %s", _NEWS_CACHE_S3_PATH)
+    elif upload_result is False:
+        logger.warning(
+            "News cache saved locally but failed to upload to S3: %s",
+            _NEWS_CACHE_S3_PATH,
+        )
+
+
+def _upload_cache_to_s3(local_file: Path) -> Optional[bool]:
+    """Upload the refreshed cache file to the configured S3 bucket."""
+
+    aws_client = getattr(config, "aws", None)
+    if not _NEWS_CACHE_S3_PATH or aws_client is None:
+        logger.debug(
+            "Skipping news cache S3 upload; AWS client or S3 path not configured."
+        )
+        return None
+
+    try:
+        return bool(aws_client.upload_to_s3(str(local_file), _NEWS_CACHE_S3_PATH))
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.error("Failed to upload news cache to S3: %s", exc, exc_info=True)
+        return False
 
 
 def _build_default_queries() -> Dict[str, str]:
@@ -92,7 +121,7 @@ def _build_default_queries() -> Dict[str, str]:
 
 def refresh_news_cache(
     *,
-    max_results_per_asset: int = 3,
+    max_results_per_asset: int = 5,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     country: str = "US",
@@ -128,9 +157,7 @@ def refresh_news_cache(
     updated_cache: Dict[str, List[Dict[str, Any]]] = {}
     metadata = cache.get(_METADATA_KEY)
     previous_refresh_at = (
-        metadata.get(_METADATA_LAST_REFRESH)
-        if isinstance(metadata, dict)
-        else None
+        metadata.get(_METADATA_LAST_REFRESH) if isinstance(metadata, dict) else None
     )
 
     for coin, query in queries.items():
@@ -202,7 +229,7 @@ def refresh_news_cache(
 
 def get_cached_news(
     coin: str,
-    limit: int = 3,
+    limit: int = 5,
 ) -> List[Dict[str, Any]]:
     """Return cached news entries for a given coin (most recent first)."""
     cache = _load_cache()
@@ -214,10 +241,16 @@ def get_cached_news(
 
 def get_cached_titles(coin: str, limit: int = 3) -> List[str]:
     """Convenience helper returning only the news headlines."""
-    return [entry.get("title", "") for entry in get_cached_news(coin, limit=limit) if entry.get("title")]
+    return [
+        entry.get("title", "")
+        for entry in get_cached_news(coin, limit=limit)
+        if entry.get("title")
+    ]
 
 
-def iter_cached_news(limit_per_asset: int = 3) -> Iterable[tuple[str, List[Dict[str, Any]]]]:
+def iter_cached_news(
+    limit_per_asset: int = 5,
+) -> Iterable[tuple[str, List[Dict[str, Any]]]]:
     """Yield ``(coin, news_list)`` pairs from the cache for all configured assets."""
     cache = _load_cache()
     for symbol in config.SYMBOLS:
