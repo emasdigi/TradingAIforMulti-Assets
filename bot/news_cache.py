@@ -121,7 +121,7 @@ def _build_default_queries() -> Dict[str, str]:
 
 def refresh_news_cache(
     *,
-    max_results_per_asset: int = 3,
+    max_results_per_asset: int = 5,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     country: str = "US",
@@ -229,7 +229,7 @@ def refresh_news_cache(
 
 def get_cached_news(
     coin: str,
-    limit: int = 3,
+    limit: int = 5,
 ) -> List[Dict[str, Any]]:
     """Return cached news entries for a given coin (most recent first)."""
     cache = _load_cache()
@@ -249,7 +249,7 @@ def get_cached_titles(coin: str, limit: int = 3) -> List[str]:
 
 
 def iter_cached_news(
-    limit_per_asset: int = 3,
+    limit_per_asset: int = 5,
 ) -> Iterable[tuple[str, List[Dict[str, Any]]]]:
     """Yield ``(coin, news_list)`` pairs from the cache for all configured assets."""
     cache = _load_cache()
