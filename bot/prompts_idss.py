@@ -451,9 +451,9 @@ def create_trading_prompt(
         return f"{years} year{'s' if years != 1 else ''} ago"
 
     def summarize_news_sentiment(
-        entries: List[Dict[str, Any]]
-    ) -> Optional[Tuple[str, str, Optional[Dict[str, Any]]]]:
-        """Return (summary_line, key_headline, key_entry) describing sentiment balance."""
+        entries: List[Dict[str, Any]],
+    ) -> Optional[Tuple[str, Optional[Dict[str, Any]]]]:
+        """Return (summary_line, key_entry) describing sentiment balance."""
 
         if not entries:
             return None
@@ -497,22 +497,7 @@ def create_trading_prompt(
             f"={counts['neutral']} (net score {net_score:+.2f})."
         )
 
-        if key_entry:
-            key_summary = (
-                key_entry.get("summary")
-                or key_entry.get("snippet")
-                or key_entry.get("title", "")
-            )
-            key_summary = key_summary.replace("\n", " ").strip()
-            key_sentiment = (key_entry.get("sentiment") or "unknown").upper()
-            freshness = describe_freshness(key_entry)
-            key_line = f"Key headline [{key_sentiment}] {key_summary}"
-            if freshness:
-                key_line += f" (published {freshness})"
-        else:
-            key_line = ""
-
-        return summary_line, key_line, key_entry if key_entry else None
+        return summary_line, key_entry if key_entry else None
 
     for symbol in config.SYMBOLS:
         coin = config.SYMBOL_TO_COIN[symbol]
@@ -553,10 +538,8 @@ def create_trading_prompt(
             sentiment_summary = summarize_news_sentiment(news_entries)
             prompt_lines.append("  Recent news sentiment:")
             if sentiment_summary:
-                summary_line, key_line, key_entry_for_summary = sentiment_summary
+                summary_line, key_entry_for_summary = sentiment_summary
                 prompt_lines.append(f"    - {summary_line}")
-                if key_line:
-                    prompt_lines.append(f"    - {key_line}")
             for entry in news_entries:
                 if key_entry_for_summary is not None and entry is key_entry_for_summary:
                     continue
