@@ -452,8 +452,8 @@ def create_trading_prompt(
 
     def summarize_news_sentiment(
         entries: List[Dict[str, Any]]
-    ) -> Optional[Tuple[str, str]]:
-        """Return (summary_line, key_headline) describing sentiment balance."""
+    ) -> Optional[Tuple[str, str, Optional[Dict[str, Any]]]]:
+        """Return (summary_line, key_headline, key_entry) describing sentiment balance."""
 
         if not entries:
             return None
@@ -512,7 +512,7 @@ def create_trading_prompt(
         else:
             key_line = ""
 
-        return summary_line, key_line
+        return summary_line, key_line, key_entry if key_entry else None
 
     for symbol in config.SYMBOLS:
         coin = config.SYMBOL_TO_COIN[symbol]
@@ -547,15 +547,19 @@ def create_trading_prompt(
 
         news_entries = news_cache.get_cached_news(coin, limit=5)
 
+        key_entry_for_summary: Optional[Dict[str, Any]] = None
+
         if news_entries:
             sentiment_summary = summarize_news_sentiment(news_entries)
             prompt_lines.append("  Recent news sentiment:")
             if sentiment_summary:
-                summary_line, key_line = sentiment_summary
+                summary_line, key_line, key_entry_for_summary = sentiment_summary
                 prompt_lines.append(f"    - {summary_line}")
                 if key_line:
                     prompt_lines.append(f"    - {key_line}")
             for entry in news_entries:
+                if key_entry_for_summary is not None and entry is key_entry_for_summary:
+                    continue
                 summary = (
                     entry.get("summary")
                     or entry.get("snippet")
