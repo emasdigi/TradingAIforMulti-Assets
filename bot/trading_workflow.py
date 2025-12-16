@@ -6,6 +6,10 @@ import json
 import logging
 import threading
 import time
+import base64
+import ast
+import os
+
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional, Iterable
@@ -19,6 +23,8 @@ from openai import OpenAI
 from config import config
 from . import clients
 from utils import utils
+
+from utils.awsKafkaConfluent import create_producer
 
 if config.ASSET_MODE.lower() == "crypto":
     from . import data_processing as data_processing
@@ -232,6 +238,7 @@ elif config.ASSET_MODE.lower() == "idss":
     from . import data_processing_idss as data_processing
     from . import prompts_idss as prompts
 
+
 class TradingState:
     """Manages the full state of the trading bot."""
 
@@ -253,6 +260,43 @@ class TradingState:
         self._state_file: Path = self._state_dir / "portfolio_state.json"
         self._state_csv: Path = self._state_dir / "portfolio_state.csv"
 
+    def get_kafka_secret(self):
+        """fetch KAFKA AWS secret key from secret manager
+
+        Raises:
+            e: if the secret fetching failed
+
+        Returns:
+            dict: secret
+        """
+        secret = config.aws.get_aws_secret_manager_value(
+            config.envCONFIG["kafka"]["secretName"]
+        )
+        config.envCONFIG["kafka"]["bootstrapServers"] = ast.literal_eval(
+            secret["KAFKA_BOOTSTRAP_BROKERS"]
+        )[0]
+        for key in ["KAFKA_CA_CERT", "KAFKA_ACCESS_CERT", "KAFKA_ACCESS_KEY"]:
+            secret[key] = base64.b64decode(secret[key]).decode()
+        return secret
+
+    def kafka_init(self):
+        """
+        Fetch kafka secret keys from AWS and store into a file if not exists. Initializes kafka producer
+
+        """
+        kafkaSecret = self.get_kafka_secret()
+        kafkaSecretFiles = {
+            "KAFKA_CA_CERT": "ca.pem",
+            "KAFKA_ACCESS_CERT": "service.cert",
+            "KAFKA_ACCESS_KEY": "service.key",
+        }
+        # generate the file if not exist
+        for key, filePath in kafkaSecretFiles.items():
+            if not os.path.isfile(filePath):
+                with open(filePath, "w") as f:
+                    f.write(kafkaSecret[key])
+        self.producer = create_producer(config.envCONFIG["kafka"])
+
     def load_state(self):
         """Load persisted balance and positions if available."""
         data: Dict[str, Any] = {}
@@ -261,7 +305,7 @@ class TradingState:
         download_success = config.aws.download_directory_from_s3(
             s3_base_path=config.PROJECT_S3_PATH, local_directory=config.DATA_DIR
         )
-       
+
         if download_success["success"] > 0:
             logging.info(
                 "Successfully downloaded state from S3: %s", config.PROJECT_S3_PATH
@@ -450,6 +494,29 @@ class TradingState:
 
         self.equity_history = series.tolist()
         return True
+
+    def produce_kafka_message(
+        self, model_name: str, topic: str, message: Dict[str, Any]
+    ):
+        """
+        Produce a message to a Kafka topic
+
+        Args:
+            model_name: the name of the model
+            topic: the topic to produce the message to
+            message: the message to produce
+        """
+        message["model_name"] = model_name
+        try:
+            self.producer.produce(
+                topic=topic,
+                value=json.dumps(message).encode("utf-8"),
+            )
+            self.producer.flush()
+            logging.info(f"Produce message to topic {topic}")
+        except Exception as e:
+            error_msg = f"Failed to produce message to topic {topic}: {str(e)}"
+            logging.error(error_msg)
 
     def save_state(self, latest_summary: Optional[Dict[str, Any]] = None):
         """Persist current balance, equity, and open positions."""

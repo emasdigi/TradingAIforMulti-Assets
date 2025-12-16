@@ -6,9 +6,13 @@ kafka:
     topic:
       idssOhlc: idss-realtime-v2
     groupId: trading-ai-bot-consumer-staging
-  # producer:
-  #   topic:
-  #     flowTardingHedgingOrders: flow-trading-order-request
+  producer:
+    topic:
+      tradingIdssAiMessages: trading-idss-ai-messages
+      tradingIdssPortfolioState: trading-idss-portfolio-state
+      tradingIdssPortfolioStateHistory: trading-idss-portfolio-state-history
+      tradingIdssTradeHistory: trading-idss-trade-history
+      tradingIdssAiDecisions: trading-idss-ai-decisions
   secretName: STAGING_KAFKA_CONFIG_NODE
 tradingBotSecretName: STAGING_TRADING_AI_BOT
 projectS3Path: s3://trading-ai-multi-assets-staging/
