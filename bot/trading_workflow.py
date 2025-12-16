@@ -319,6 +319,14 @@ class TradingState:
             try:
                 with open(self._state_file, "r") as f:
                     data = json.load(f)
+
+                self.produce_kafka_message(
+                    model_name=self.model_name,
+                    topic=config.envCONFIG["kafka"]["producer"]["topic"][
+                        "tradingIdssPortfolioState"
+                    ],
+                    message=data,
+                )
             except Exception as e:
                 logging.error(
                     "[%s] Failed to load state JSON (%s); attempting CSV fallback.",
