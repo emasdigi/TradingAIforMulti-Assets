@@ -259,6 +259,8 @@ class TradingState:
         self._state_dir.mkdir(parents=True, exist_ok=True)
         self._state_file: Path = self._state_dir / "portfolio_state.json"
         self._state_csv: Path = self._state_dir / "portfolio_state.csv"
+        self.producer = None
+        self.kafka_init()
 
     def get_kafka_secret(self):
         """fetch KAFKA AWS secret key from secret manager
@@ -649,6 +651,10 @@ def get_llm_decisions(
                 "metadata": {"model": model_name},
             },
             model_name=model_name,
+            produce_kafka_fn=state.produce_kafka_message,
+            kafka_topic=config.envCONFIG["kafka"]["producer"]["topic"][
+                "tradingIdssAiMessages"
+            ],
         )
         utils.log_ai_message(
             {
@@ -659,6 +665,10 @@ def get_llm_decisions(
                 "metadata": {"model": model_name},
             },
             model_name=model_name,
+            produce_kafka_fn=state.produce_kafka_message,
+            kafka_topic=config.envCONFIG["kafka"]["producer"]["topic"][
+                "tradingIdssAiMessages"
+            ],
         )
         model_config = config.LLM_MODELS[model_name]
 
@@ -733,6 +743,10 @@ def get_llm_decisions(
                 "metadata": {"id": response.id},
             },
             model_name=model_name,
+            produce_kafka_fn=state.produce_kafka_message,
+            kafka_topic=config.envCONFIG["kafka"]["producer"]["topic"][
+                "tradingIdssAiMessages"
+            ],
         )
 
         if not normalized_content:
@@ -1167,7 +1181,14 @@ def execute_trade(
         }
         trade_data["net_pnl"] = trade_data["pnl"] - entry_fee
 
-        utils.log_trade(trade_data, model_name=state.model_name)
+        utils.log_trade(
+            trade_data,
+            model_name=state.model_name,
+            produce_kafka_fn=state.produce_kafka_message,
+            kafka_topic=config.envCONFIG["kafka"]["producer"]["topic"][
+                "tradingIdssTradeHistory"
+            ],
+        )
         state.current_iteration_trades.append(trade_data)
 
     elif signal == "close":
@@ -1217,7 +1238,14 @@ def execute_trade(
         trade_data["position_fee_total"] = total_position_fees
         trade_data["position_net_pnl"] = net_position_pnl
 
-        utils.log_trade(trade_data, model_name=state.model_name)
+        utils.log_trade(
+            trade_data,
+            model_name=state.model_name,
+            produce_kafka_fn=state.produce_kafka_message,
+            kafka_topic=config.envCONFIG["kafka"]["producer"]["topic"][
+                "tradingIdssTradeHistory"
+            ],
+        )
         state.current_iteration_trades.append(trade_data)
 
         # Remove position
@@ -1424,6 +1452,10 @@ def run_trading_loop(model_name: str):
                             **decision,
                         },
                         model_name=model_name,
+                        produce_kafka_fn=state.produce_kafka_message,
+                        kafka_topic=config.envCONFIG["kafka"]["producer"]["topic"][
+                            "tradingIdssAiDecisions"
+                        ],
                     )
 
                     current_price = market_snapshots.get(coin, {}).get("price")
@@ -1485,7 +1517,14 @@ def run_trading_loop(model_name: str):
             else:
                 summary["short_summary"] = ""
 
-            utils.log_portfolio_state(summary, model_name=model_name)
+            utils.log_portfolio_state(
+                summary,
+                model_name=model_name,
+                produce_kafka_fn=state.produce_kafka_message,
+                kafka_topic=config.envCONFIG["kafka"]["producer"]["topic"][
+                    "tradingIdssPortfolioStateHistory"
+                ],
+            )
             state.save_state(latest_summary=summary)
 
             # 5. Send Telegram notification

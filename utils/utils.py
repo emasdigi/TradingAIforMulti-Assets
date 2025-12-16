@@ -217,7 +217,10 @@ def init_csv_files(model_name: Optional[str] = None) -> None:
 
 
 def log_portfolio_state(
-    state: Dict[str, Any], model_name: Optional[str] = None
+    state: Dict[str, Any],
+    model_name: Optional[str] = None,
+    produce_kafka_fn: Optional[callable] = None,
+    kafka_topic: Optional[str] = None,
 ) -> None:
     """Log current portfolio state to CSV."""
     _init_csv_paths()  # Ensure CSV paths are initialized
@@ -228,8 +231,16 @@ def log_portfolio_state(
             writer = csv.writer(f)
             writer.writerow([state.get(col, "") for col in STATE_COLUMNS])
 
+    if produce_kafka_fn and kafka_topic and model_name:
+        produce_kafka_fn(model_name, kafka_topic, state)
 
-def log_trade(trade_data: Dict[str, Any], model_name: Optional[str] = None) -> None:
+
+def log_trade(
+    trade_data: Dict[str, Any],
+    model_name: Optional[str] = None,
+    produce_kafka_fn: Optional[callable] = None,
+    kafka_topic: Optional[str] = None,
+) -> None:
     """Log trade execution to CSV."""
     _init_csv_paths()  # Ensure CSV paths are initialized
     header = [
@@ -258,9 +269,15 @@ def log_trade(trade_data: Dict[str, Any], model_name: Optional[str] = None) -> N
             writer = csv.writer(f)
             writer.writerow([trade_data.get(col, "") for col in header])
 
+    if produce_kafka_fn and kafka_topic and model_name:
+        produce_kafka_fn(model_name, kafka_topic, trade_data)
+
 
 def log_ai_decision(
-    decision_data: Dict[str, Any], model_name: Optional[str] = None
+    decision_data: Dict[str, Any],
+    model_name: Optional[str] = None,
+    produce_kafka_fn: Optional[callable] = None,
+    kafka_topic: Optional[str] = None,
 ) -> None:
     """Log AI decision to CSV."""
     _init_csv_paths()  # Ensure CSV paths are initialized
@@ -280,11 +297,24 @@ def log_ai_decision(
             writer = csv.writer(f)
             writer.writerow([decision_data.get(col, "") for col in header])
 
+    if produce_kafka_fn and kafka_topic and model_name:
+        produce_kafka_fn(model_name, kafka_topic, decision_data)
+
 
 def log_ai_message(
-    message_data: Dict[str, Any], model_name: Optional[str] = None
+    message_data: Dict[str, Any],
+    model_name: Optional[str] = None,
+    produce_kafka_fn: Optional[callable] = None,
+    kafka_topic: Optional[str] = None,
 ) -> None:
-    """Log raw messages exchanged with the AI provider to CSV."""
+    """Log raw messages exchanged with the AI provider to CSV and optionally to Kafka.
+
+    Args:
+        message_data: Dictionary containing message details (timestamp, direction, role, content, metadata)
+        model_name: Optional model name for file path resolution
+        produce_kafka_fn: Optional callable to produce messages to Kafka (signature: model_name, topic, message)
+        kafka_topic: Optional Kafka topic name (required if produce_kafka_fn is provided)
+    """
     _init_csv_paths()  # Ensure CSV paths are initialized
     header = ["timestamp", "direction", "role", "content", "metadata"]
     target_path = _resolve_csv_path(MESSAGES_CSV, model_name)
@@ -293,6 +323,10 @@ def log_ai_message(
         with open(target_path, "a", newline="") as f:
             writer = csv.writer(f)
             writer.writerow([message_data.get(col, "") for col in header])
+
+    # Send to Kafka if callback is provided
+    if produce_kafka_fn and kafka_topic and model_name:
+        produce_kafka_fn(model_name, kafka_topic, message_data)
 
 
 # --- TELEGRAM ---
@@ -504,6 +538,7 @@ def is_today(timestamp: int) -> bool:
     tz = pytz.FixedOffset(420)  # GMT-4 is UTC-4 hours, i.e., -240 minutes
     dt = datetime.fromtimestamp(timestamp, tz)
     return dt.date() == datetime.now().date()
+
 
 def is_next_day(prev_timestamp: int, new_timestamp: int) -> bool:
     tz = pytz.FixedOffset(420)  # GMT-4 is UTC-4 hours, i.e., -240 minutes
