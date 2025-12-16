@@ -232,6 +232,7 @@ def log_portfolio_state(
             writer.writerow([state.get(col, "") for col in STATE_COLUMNS])
 
     if produce_kafka_fn and kafka_topic and model_name:
+        state["start_time"] = state["start_time"].isoformat()
         produce_kafka_fn(model_name, kafka_topic, state)
 
 
