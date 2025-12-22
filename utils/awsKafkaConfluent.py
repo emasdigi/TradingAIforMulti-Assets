@@ -6,7 +6,7 @@ from confluent_kafka import (
     TopicPartition,
     OFFSET_END,
 )
-from config.config import logger
+import logging
 import time
 
 
@@ -73,18 +73,18 @@ def reset_offsets(
             for topic in topics:
                 if topic in metadata.topics:
                     expected_partitions[topic] = len(metadata.topics[topic].partitions)
-                    logger.info(
+                    logging.info(
                         f"Topic {topic} has {expected_partitions[topic]} partitions"
                     )
                 else:
-                    logger.warning(f"Topic {topic} not found in metadata")
+                    logging.warning(f"Topic {topic} not found in metadata")
             break
         except Exception as e:
-            logger.warning(f"Error fetching metadata: {str(e)}")
+            logging.warning(f"Error fetching metadata: {str(e)}")
             time.sleep(1)
 
     if not expected_partitions:
-        logger.warning(
+        logging.warning(
             "Could not fetch partition counts, proceeding without verification"
         )
 
@@ -97,11 +97,11 @@ def reset_offsets(
 
             if not assigned_partitions:
                 if time.time() - start_time > max_wait_time:
-                    logger.error(
+                    logging.error(
                         f"Timeout: No partitions assigned after {max_wait_time}s"
                     )
                     raise Exception("Failed to get partition assignment")
-                logger.info("No partitions assigned yet, polling again...")
+                logging.info("No partitions assigned yet, polling again...")
                 time.sleep(1)
                 continue
 
@@ -117,25 +117,27 @@ def reset_offsets(
                     assigned = len(assigned_by_topic.get(topic, []))
                     if assigned < expected:
                         all_assigned = False
-                        logger.info(
+                        logging.info(
                             f"Topic {topic}: {assigned}/{expected} partitions assigned"
                         )
 
             if all_assigned:
-                logger.info("All partitions assigned for all topics")
+                logging.info("All partitions assigned for all topics")
                 break
             elif time.time() - start_time > max_wait_time:
-                logger.warning("Timeout reached with partial assignment. Proceeding...")
+                logging.warning(
+                    "Timeout reached with partial assignment. Proceeding..."
+                )
                 break
             else:
                 elapsed = time.time() - start_time
-                logger.info(
+                logging.info(
                     f"Waiting for more partitions... ({elapsed:.1f}s/{max_wait_time}s)"
                 )
                 time.sleep(1)
 
         except KafkaError as e:
-            logger.error(f"Kafka error during poll: {str(e)}")
+            logging.error(f"Kafka error during poll: {str(e)}")
             if time.time() - start_time > max_wait_time:
                 raise Exception("Failed due to Kafka errors")
             time.sleep(1)
@@ -145,7 +147,7 @@ def reset_offsets(
         if tp.topic == special_topic:
             low, high = consumer.get_watermark_offsets(tp)
             consumer.seek(TopicPartition(tp.topic, tp.partition, low))
-            logger.info(
+            logging.info(
                 f"Set {tp.topic} partition {tp.partition} to earliest offset: {low}, latest offset: {high}"
             )
             target_offset = high - 1
