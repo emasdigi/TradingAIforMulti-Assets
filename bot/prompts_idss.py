@@ -662,8 +662,8 @@ def create_trading_prompt(
         )
         for trade in recent_trades:
             trade_summary = {
-                "symbol": trade.get("symbol"),
-                "signal": trade.get("signal"),
+                "symbol": trade.get("coin"),
+                "signal": trade.get("action"),
                 "side": trade.get("side"),
                 "quantity": trade.get("quantity"),
                 "price": trade.get("price"),
