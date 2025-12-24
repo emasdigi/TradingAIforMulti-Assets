@@ -232,6 +232,7 @@ elif config.ASSET_MODE.lower() == "idss":
     from . import data_processing_idss as data_processing
     from . import prompts_idss as prompts
 
+
 class TradingState:
     """Manages the full state of the trading bot."""
 
@@ -247,6 +248,7 @@ class TradingState:
         self.invocation_count: int = 0
         self.current_iteration_messages: list[str] = []
         self.current_iteration_trades: list[Dict[str, Any]] = []
+        self.recent_trades: list[Dict[str, Any]] = []
         self.total_fees_paid: float = 0.0
         self._state_dir: Path = config.DATA_DIR / self.model_name
         self._state_dir.mkdir(parents=True, exist_ok=True)
@@ -261,7 +263,7 @@ class TradingState:
         download_success = config.aws.download_directory_from_s3(
             s3_base_path=config.PROJECT_S3_PATH, local_directory=config.DATA_DIR
         )
-       
+
         if download_success["success"] > 0:
             logging.info(
                 "Successfully downloaded state from S3: %s", config.PROJECT_S3_PATH
@@ -309,6 +311,11 @@ class TradingState:
             fees_value = _to_float(fees_candidate)
             if fees_value is not None:
                 self.total_fees_paid = fees_value
+
+            # Restore recent trades history
+            recent_trades = data.get("recent_trades")
+            if isinstance(recent_trades, list):
+                self.recent_trades = recent_trades[-10:]  # Keep last 10
 
             last_equity = _to_float(data.get("last_total_equity"))
 
@@ -451,6 +458,11 @@ class TradingState:
         self.equity_history = series.tolist()
         return True
 
+    def add_recent_trades(self, trades: list[Dict[str, Any]]) -> None:
+        """Add trades to recent_trades, keeping only the last 10."""
+        self.recent_trades.extend(trades)
+        self.recent_trades = self.recent_trades[-10:]
+
     def save_state(self, latest_summary: Optional[Dict[str, Any]] = None):
         """Persist current balance, equity, and open positions."""
         payload: Dict[str, Any] = {
@@ -460,6 +472,7 @@ class TradingState:
             "start_time": self.start_time.isoformat(),
             "total_fees_paid": _to_float(self.total_fees_paid) or self.total_fees_paid,
             "updated_at": datetime.now(timezone.utc).isoformat(),
+            "recent_trades": self.recent_trades,
         }
 
         if latest_summary:
@@ -551,6 +564,7 @@ class TradingState:
             "net_unrealized_pnl": net_unrealized_pnl,
             "sharpe_ratio": sharpe_ratio,
             "total_fees_paid": self.total_fees_paid,
+            "recent_trades": self.recent_trades,
         }
 
 
@@ -1310,6 +1324,9 @@ def run_trading_loop(model_name: str):
 
             state.invocation_count += 1
             state.current_iteration_messages = []
+            state.add_recent_trades(
+                state.current_iteration_trades
+            )  # Keep last 20 trades
             state.current_iteration_trades = []  # Reset trades for this iteration
 
             now_utc = datetime.now(timezone.utc)
