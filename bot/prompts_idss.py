@@ -575,6 +575,40 @@ def create_trading_prompt(
             }
             prompt_lines.append(f"{coin} position data: {json.dumps(position_payload)}")
 
+    # Add recent trades history for learning
+    recent_trades = state.get("recent_trades", [])
+    if recent_trades:
+        prompt_lines.extend(
+            [
+                "-" * 80,
+                "## RECENT TRADE HISTORY (Last 10 trades)",
+                "Use this history to learn from past decisions and improve your trading strategy:",
+            ]
+        )
+        for trade in recent_trades:
+            trade_summary = {
+                "symbol": trade.get("coin"),
+                "signal": trade.get("action"),
+                "side": trade.get("side"),
+                "quantity": trade.get("quantity"),
+                "price": trade.get("price"),
+                "pnl": trade.get("pnl") or trade.get("position_net_pnl"),
+                "timestamp": trade.get("timestamp"),
+                "confidence": trade.get("confidence"),
+                "rationale": trade.get("rationale", "")[
+                    :100
+                ],  # Truncate long rationales
+            }
+            prompt_lines.append(f"  - {json.dumps(trade_summary)}")
+    else:
+        prompt_lines.extend(
+            [
+                "-" * 80,
+                "## RECENT TRADE HISTORY",
+                "No recent trades yet.",
+            ]
+        )
+
     prompt_lines.append(
         """
     Based on the above data, provide your trading decision in the required JSON format.
