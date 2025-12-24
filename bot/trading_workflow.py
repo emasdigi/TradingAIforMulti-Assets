@@ -312,10 +312,8 @@ class TradingState:
             if fees_value is not None:
                 self.total_fees_paid = fees_value
 
-            # Restore recent trades history
-            recent_trades = data.get("recent_trades")
-            if isinstance(recent_trades, list):
-                self.recent_trades = recent_trades[-10:]  # Keep last 10
+            # Restore recent trades from CSV
+            self._load_recent_trades_from_csv()
 
             last_equity = _to_float(data.get("last_total_equity"))
 
@@ -463,6 +461,34 @@ class TradingState:
         self.recent_trades.extend(trades)
         self.recent_trades = self.recent_trades[-10:]
 
+    def _load_recent_trades_from_csv(self) -> None:
+        """Load the last 10 trades from trade_history.csv."""
+        trades_csv = self._state_dir / "trade_history.csv"
+        if not trades_csv.exists():
+            logging.info("[%s] No trade history CSV found.", self.model_name)
+            return
+
+        try:
+            df = pd.read_csv(trades_csv)
+            if df.empty:
+                return
+
+            # Get last 10 rows and convert to list of dicts
+            recent_df = df.tail(10)
+            self.recent_trades = recent_df.to_dict("records")
+            logging.info(
+                "[%s] Loaded %d recent trades from CSV.",
+                self.model_name,
+                len(self.recent_trades),
+            )
+        except Exception as e:
+            logging.error(
+                "[%s] Failed to load recent trades from CSV: %s",
+                self.model_name,
+                e,
+                exc_info=True,
+            )
+
     def save_state(self, latest_summary: Optional[Dict[str, Any]] = None):
         """Persist current balance, equity, and open positions."""
         payload: Dict[str, Any] = {
@@ -472,7 +498,6 @@ class TradingState:
             "start_time": self.start_time.isoformat(),
             "total_fees_paid": _to_float(self.total_fees_paid) or self.total_fees_paid,
             "updated_at": datetime.now(timezone.utc).isoformat(),
-            "recent_trades": self.recent_trades,
         }
 
         if latest_summary:
