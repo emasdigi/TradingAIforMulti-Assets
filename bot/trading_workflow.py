@@ -6,6 +6,10 @@ import json
 import logging
 import threading
 import time
+import base64
+import ast
+import os
+
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional, Iterable
@@ -19,6 +23,8 @@ from openai import OpenAI
 from config import config
 from . import clients
 from utils import utils
+
+from utils.awsKafkaConfluent import create_producer
 
 if config.ASSET_MODE.lower() == "crypto":
     from . import data_processing as data_processing
@@ -254,6 +260,45 @@ class TradingState:
         self._state_dir.mkdir(parents=True, exist_ok=True)
         self._state_file: Path = self._state_dir / "portfolio_state.json"
         self._state_csv: Path = self._state_dir / "portfolio_state.csv"
+        self.producer = None
+        self.kafka_init()
+
+    def get_kafka_secret(self):
+        """fetch KAFKA AWS secret key from secret manager
+
+        Raises:
+            e: if the secret fetching failed
+
+        Returns:
+            dict: secret
+        """
+        secret = config.aws.get_aws_secret_manager_value(
+            config.envCONFIG["kafka"]["secretName"]
+        )
+        config.envCONFIG["kafka"]["bootstrapServers"] = ast.literal_eval(
+            secret["KAFKA_BOOTSTRAP_BROKERS"]
+        )[0]
+        for key in ["KAFKA_CA_CERT", "KAFKA_ACCESS_CERT", "KAFKA_ACCESS_KEY"]:
+            secret[key] = base64.b64decode(secret[key]).decode()
+        return secret
+
+    def kafka_init(self):
+        """
+        Fetch kafka secret keys from AWS and store into a file if not exists. Initializes kafka producer
+
+        """
+        kafkaSecret = self.get_kafka_secret()
+        kafkaSecretFiles = {
+            "KAFKA_CA_CERT": "ca.pem",
+            "KAFKA_ACCESS_CERT": "service.cert",
+            "KAFKA_ACCESS_KEY": "service.key",
+        }
+        # generate the file if not exist
+        for key, filePath in kafkaSecretFiles.items():
+            if not os.path.isfile(filePath):
+                with open(filePath, "w") as f:
+                    f.write(kafkaSecret[key])
+        self.producer = create_producer(config.envCONFIG["kafka"])
 
     def load_state(self):
         """Load persisted balance and positions if available."""
@@ -275,6 +320,14 @@ class TradingState:
             try:
                 with open(self._state_file, "r") as f:
                     data = json.load(f)
+
+                self.produce_kafka_message(
+                    model_name=self.model_name,
+                    topic=config.envCONFIG["kafka"]["producer"]["topic"][
+                        "tradingIdssPortfolioState"
+                    ],
+                    message=data,
+                )
             except Exception as e:
                 logging.error(
                     "[%s] Failed to load state JSON (%s); attempting CSV fallback.",
@@ -456,6 +509,29 @@ class TradingState:
         self.equity_history = series.tolist()
         return True
 
+    def produce_kafka_message(
+        self, model_name: str, topic: str, message: Dict[str, Any]
+    ):
+        """
+        Produce a message to a Kafka topic
+
+        Args:
+            model_name: the name of the model
+            topic: the topic to produce the message to
+            message: the message to produce
+        """
+        message["model_name"] = model_name
+        try:
+            self.producer.produce(
+                topic=topic,
+                value=json.dumps(message).encode("utf-8"),
+            )
+            self.producer.flush()
+            logging.info(f"Produce message to topic {topic}")
+        except Exception as e:
+            error_msg = f"Failed to produce message to topic {topic}: {str(e)}"
+            logging.error(error_msg)
+
     def add_recent_trades(self, trades: list[Dict[str, Any]]) -> None:
         """Add trades to recent_trades, keeping only the last 10."""
         self.recent_trades.extend(trades)
@@ -621,6 +697,10 @@ def get_llm_decisions(
                 "metadata": {"model": model_name},
             },
             model_name=model_name,
+            produce_kafka_fn=state.produce_kafka_message,
+            kafka_topic=config.envCONFIG["kafka"]["producer"]["topic"][
+                "tradingIdssAiMessages"
+            ],
         )
         utils.log_ai_message(
             {
@@ -631,6 +711,10 @@ def get_llm_decisions(
                 "metadata": {"model": model_name},
             },
             model_name=model_name,
+            produce_kafka_fn=state.produce_kafka_message,
+            kafka_topic=config.envCONFIG["kafka"]["producer"]["topic"][
+                "tradingIdssAiMessages"
+            ],
         )
         model_config = config.LLM_MODELS[model_name]
 
@@ -705,6 +789,10 @@ def get_llm_decisions(
                 "metadata": {"id": response.id},
             },
             model_name=model_name,
+            produce_kafka_fn=state.produce_kafka_message,
+            kafka_topic=config.envCONFIG["kafka"]["producer"]["topic"][
+                "tradingIdssAiMessages"
+            ],
         )
 
         if not normalized_content:
@@ -1139,7 +1227,14 @@ def execute_trade(
         }
         trade_data["net_pnl"] = trade_data["pnl"] - entry_fee
 
-        utils.log_trade(trade_data, model_name=state.model_name)
+        utils.log_trade(
+            trade_data,
+            model_name=state.model_name,
+            produce_kafka_fn=state.produce_kafka_message,
+            kafka_topic=config.envCONFIG["kafka"]["producer"]["topic"][
+                "tradingIdssTradeHistory"
+            ],
+        )
         state.current_iteration_trades.append(trade_data)
 
     elif signal == "close":
@@ -1189,7 +1284,14 @@ def execute_trade(
         trade_data["position_fee_total"] = total_position_fees
         trade_data["position_net_pnl"] = net_position_pnl
 
-        utils.log_trade(trade_data, model_name=state.model_name)
+        utils.log_trade(
+            trade_data,
+            model_name=state.model_name,
+            produce_kafka_fn=state.produce_kafka_message,
+            kafka_topic=config.envCONFIG["kafka"]["producer"]["topic"][
+                "tradingIdssTradeHistory"
+            ],
+        )
         state.current_iteration_trades.append(trade_data)
 
         # Remove position
@@ -1399,6 +1501,10 @@ def run_trading_loop(model_name: str):
                             **decision,
                         },
                         model_name=model_name,
+                        produce_kafka_fn=state.produce_kafka_message,
+                        kafka_topic=config.envCONFIG["kafka"]["producer"]["topic"][
+                            "tradingIdssAiDecisions"
+                        ],
                     )
 
                     current_price = market_snapshots.get(coin, {}).get("price")
@@ -1460,7 +1566,14 @@ def run_trading_loop(model_name: str):
             else:
                 summary["short_summary"] = ""
 
-            utils.log_portfolio_state(summary, model_name=model_name)
+            utils.log_portfolio_state(
+                summary,
+                model_name=model_name,
+                produce_kafka_fn=state.produce_kafka_message,
+                kafka_topic=config.envCONFIG["kafka"]["producer"]["topic"][
+                    "tradingIdssPortfolioStateHistory"
+                ],
+            )
             state.save_state(latest_summary=summary)
 
             # 5. Send Telegram notification
