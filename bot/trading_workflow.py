@@ -254,6 +254,7 @@ class TradingState:
         self.invocation_count: int = 0
         self.current_iteration_messages: list[str] = []
         self.current_iteration_trades: list[Dict[str, Any]] = []
+        self.recent_trades: list[Dict[str, Any]] = []
         self.total_fees_paid: float = 0.0
         self._state_dir: Path = config.DATA_DIR / self.model_name
         self._state_dir.mkdir(parents=True, exist_ok=True)
@@ -363,6 +364,9 @@ class TradingState:
             fees_value = _to_float(fees_candidate)
             if fees_value is not None:
                 self.total_fees_paid = fees_value
+
+            # Restore recent trades from CSV
+            self._load_recent_trades_from_csv()
 
             last_equity = _to_float(data.get("last_total_equity"))
 
@@ -528,6 +532,39 @@ class TradingState:
             error_msg = f"Failed to produce message to topic {topic}: {str(e)}"
             logging.error(error_msg)
 
+    def add_recent_trades(self, trades: list[Dict[str, Any]]) -> None:
+        """Add trades to recent_trades, keeping only the last 10."""
+        self.recent_trades.extend(trades)
+        self.recent_trades = self.recent_trades[-10:]
+
+    def _load_recent_trades_from_csv(self) -> None:
+        """Load the last 10 trades from trade_history.csv."""
+        trades_csv = self._state_dir / "trade_history.csv"
+        if not trades_csv.exists():
+            logging.info("[%s] No trade history CSV found.", self.model_name)
+            return
+
+        try:
+            df = pd.read_csv(trades_csv)
+            if df.empty:
+                return
+
+            # Get last 10 rows and convert to list of dicts
+            recent_df = df.tail(10)
+            self.recent_trades = recent_df.to_dict("records")
+            logging.info(
+                "[%s] Loaded %d recent trades from CSV.",
+                self.model_name,
+                len(self.recent_trades),
+            )
+        except Exception as e:
+            logging.error(
+                "[%s] Failed to load recent trades from CSV: %s",
+                self.model_name,
+                e,
+                exc_info=True,
+            )
+
     def save_state(self, latest_summary: Optional[Dict[str, Any]] = None):
         """Persist current balance, equity, and open positions."""
         payload: Dict[str, Any] = {
@@ -628,6 +665,7 @@ class TradingState:
             "net_unrealized_pnl": net_unrealized_pnl,
             "sharpe_ratio": sharpe_ratio,
             "total_fees_paid": self.total_fees_paid,
+            "recent_trades": self.recent_trades,
         }
 
 
@@ -1413,6 +1451,9 @@ def run_trading_loop(model_name: str):
 
             state.invocation_count += 1
             state.current_iteration_messages = []
+            state.add_recent_trades(
+                state.current_iteration_trades
+            )  # Keep last 20 trades
             state.current_iteration_trades = []  # Reset trades for this iteration
 
             now_utc = datetime.now(timezone.utc)
