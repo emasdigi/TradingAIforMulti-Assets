@@ -337,7 +337,7 @@ class TradingState:
                 )
         else:
             logging.error(f"{self.model_name} Model file is not exiting in s3..")
-            exit(1)
+            # exit(1)
 
         if data:
             balance_candidate = data.get("last_total_balance", data.get("balance"))
