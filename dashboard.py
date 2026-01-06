@@ -166,12 +166,13 @@ def load_csv(path: Path, parse_dates: List[str] | None = None) -> pd.DataFrame:
     """Load a CSV into a DataFrame, returning empty frame when missing."""
     if not path.exists():
         return pd.DataFrame()
-    return pd.read_csv(path, parse_dates=parse_dates)
+    # return pd.read_csv(path, parse_dates=parse_dates)
+    return pd.read_csv(path)
 
 
-@st.cache_data(ttl=15)
 def get_portfolio_state(csv_path: str) -> pd.DataFrame:
     path = Path(csv_path)
+    logging.info(f"Loading portfolio state from {path}")
     df = load_csv(path, parse_dates=["timestamp"])
     if df.empty:
         return df
