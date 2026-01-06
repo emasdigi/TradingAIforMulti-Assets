@@ -101,13 +101,13 @@ LLM_MODELS = {
         "max_tokens": 10000,
         "temperature": 0.7,
     },
-    "sherlock_alpha": {
-        "model_id": "openrouter/sherlock-think-alpha",
-        "name": "Sherlock Think",
-        "provider": "OpenRouter",
-        "max_tokens": 10000,
-        "temperature": 0.7,
-    },
+    # "sherlock_alpha": {
+    #     "model_id": "openrouter/sherlock-think-alpha",
+    #     "name": "Sherlock Think",
+    #     "provider": "OpenRouter",
+    #     "max_tokens": 10000,
+    #     "temperature": 0.7,
+    # },
 }
 
 if env != "production":
