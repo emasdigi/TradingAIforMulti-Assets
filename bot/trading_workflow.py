@@ -337,6 +337,7 @@ class TradingState:
                 )
         else:
             logging.error(f"{self.model_name} Model file is not exiting in s3..")
+            utils.init_csv_files(model_name=self.model_name)
             # exit(1)
 
         if data:
